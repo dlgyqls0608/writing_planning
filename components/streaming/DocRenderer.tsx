@@ -158,8 +158,8 @@ function parseBlocks(content: string): Block[] {
       lines[i].trim() &&
       !lines[i].trim().startsWith('#') &&
       !lines[i].trim().startsWith('|') &&
-      !lines[i].trim().startsWith('-') &&
-      !lines[i].trim().startsWith('*') &&
+      !/^- /.test(lines[i].trim()) &&
+      !/^\* /.test(lines[i].trim()) &&
       !lines[i].trim().startsWith('>') &&
       !/^---+$/.test(lines[i].trim()) &&
       !/^\d+\.\s/.test(lines[i].trim())
@@ -169,6 +169,8 @@ function parseBlocks(content: string): Block[] {
     }
     if (textLines.join('').trim()) {
       blocks.push({ type: 'paragraph', text: textLines.join('\n') })
+    } else if (i < lines.length && lines[i].trim()) {
+      i++ // safety: advance past any line that matches no block pattern
     }
   }
 
