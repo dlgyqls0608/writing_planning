@@ -43,5 +43,15 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const defaultDocs = [
+    { type: 'logline',      title: '로그라인' },
+    { type: 'synopsis',     title: '시놉시스' },
+    { type: 'plot',         title: '플롯' },
+    { type: 'treatment',    title: '트리트먼트' },
+    { type: 'story-bible',  title: '스토리 바이블' },
+  ].map((d) => ({ ...d, project_id: data.id }))
+
+  await supabase.from('documents').insert(defaultDocs)
+
   return NextResponse.json(data, { status: 201 })
 }

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronDown, ChevronRight, FileText, BarChart2, BookOpen, Bookmark, AlignLeft, Plus } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { ChevronDown, ChevronRight, FileText, BarChart2, BookOpen, Bookmark, AlignLeft, Plus, Loader2 } from 'lucide-react'
 import { useProjectStore } from '@/stores/project'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -19,12 +19,50 @@ const DOC_ORDER: DocumentType[] = ['logline', 'synopsis', 'plot', 'treatment', '
 
 interface BinderProps {
   project: Project
-  documents: Document[]
 }
 
-export function Binder({ project, documents }: BinderProps) {
-  const { selectedDocumentId, selectDocument } = useProjectStore()
+export function Binder({ project }: BinderProps) {
+  const { selectedDocumentId, selectDocument, addDocument, documents } = useProjectStore()
   const [treatmentOpen, setTreatmentOpen] = useState(true)
+  const [isAdding, setIsAdding] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleAddTreatment() {
+    const title = newTitle.trim()
+    if (!title) return
+    setIsCreating(true)
+    setAddError(null)
+    try {
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: project.id, type: 'treatment', title }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? `서버 오류 (${res.status})`)
+      }
+      const doc: Document = await res.json()
+      addDocument(doc)
+      selectDocument(doc.id, 'treatment')
+      setNewTitle('')
+      setIsAdding(false)
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : '추가에 실패했습니다. 다시 시도해주세요.')
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  function startAdding() {
+    setIsAdding(true)
+    setNewTitle('')
+    setAddError(null)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
 
   const getDoc = (type: DocumentType) => documents.find((d) => d.type === type)
 
@@ -86,10 +124,42 @@ export function Binder({ project, documents }: BinderProps) {
                         )}
                       </button>
                     ))}
-                    <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-                      <Plus className="size-3.5 shrink-0" />
-                      <span>회차 추가</span>
-                    </button>
+                    {isAdding ? (
+                      <div className="px-2 py-1 space-y-1">
+                        <div className="flex items-center gap-1">
+                          <input
+                            ref={inputRef}
+                            value={newTitle}
+                            onChange={(e) => setNewTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleAddTreatment()
+                              if (e.key === 'Escape') { setIsAdding(false); setNewTitle(''); setAddError(null) }
+                            }}
+                            placeholder="예: 1화, 11~20화"
+                            className="flex-1 min-w-0 text-xs border border-[#4f46e5] rounded px-1.5 py-1 outline-none"
+                            disabled={isCreating}
+                          />
+                          <button
+                            onClick={handleAddTreatment}
+                            disabled={!newTitle.trim() || isCreating}
+                            className="shrink-0 p-1 rounded text-[#4f46e5] hover:bg-[#4f46e5]/10 disabled:opacity-40 transition-colors"
+                          >
+                            {isCreating ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3" />}
+                          </button>
+                        </div>
+                        {addError && (
+                          <p className="text-[10px] text-red-500 leading-tight">{addError}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={startAdding}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                      >
+                        <Plus className="size-3.5 shrink-0" />
+                        <span>회차 추가</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

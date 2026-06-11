@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getAIClient } from '@/lib/ai/client'
-import { getSystemPrompt, buildUserPrompt } from '@/lib/ai/prompts'
+import { getSystemPrompt, getQuestionPrompt, buildUserPrompt, getModelConfig } from '@/lib/ai/prompts'
 import type { GenerateRequest } from '@/types'
 
 export async function POST(req: NextRequest) {
@@ -30,14 +30,35 @@ export async function POST(req: NextRequest) {
 
   if (!project) return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다' }, { status: 404 })
 
+  // Questions mode: return clarifying questions as JSON (non-streamed)
+  if (body.mode === 'questions') {
+    const result = await getAIClient().messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 256,
+      system: getQuestionPrompt(body.type),
+      messages: [{
+        role: 'user',
+        content: `작품명: ${project.title}\n장르: ${project.genre}\n\n작가 아이디어:\n${body.userInput}`,
+      }],
+    })
+    const raw = result.content[0].type === 'text' ? result.content[0].text : '[]'
+    try {
+      const questions = JSON.parse(raw.match(/\[[\s\S]*\]/)?.[0] ?? '[]')
+      return NextResponse.json({ questions })
+    } catch {
+      return NextResponse.json({ questions: [] })
+    }
+  }
+
   const encoder = new TextEncoder()
 
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        const { model, maxTokens } = getModelConfig(body.type)
         const aiStream = getAIClient().messages.stream({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 4096,
+          model,
+          max_tokens: maxTokens,
           system: getSystemPrompt(body.type),
           messages: [
             {

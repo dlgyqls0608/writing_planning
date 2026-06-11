@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NovelForge — 와이어프레임 v2</title>
+<style>
+/* ─── Reset ─── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:#eef0f5;color:#1e1e2e;font-size:13px;line-height:1.5}
+
+/* ─── 문서 타입 색상 코드 (전체 일관 적용) ─── */
+:root{
+  --c-logline:#7c3aed;    /* 보라 */
+  --c-synopsis:#2563eb;   /* 파랑 */
+  --c-plot:#059669;       /* 초록 */
+  --c-treatment:#d97706;  /* 황색 */
+  --c-bible:#0891b2;      /* 청록 */
+  --c-foreshadow:#dc2626; /* 빨강 */
+  --c-bg:#eef0f5;
+  --c-white:#ffffff;
+  --c-border:#d4d8e8;
+  --c-text:#1e1e2e;
+  --c-muted:#6b7280;
+  --c-accent:#4f46e5;
+}
+
+/* ─── 좌측 사이드바 ─── */
+#sidebar{
+  position:fixed;top:0;left:0;width:220px;height:100vh;
+  background:#18182a;color:#c8cde4;overflow-y:auto;z-index:200;
+  display:flex;flex-direction:column;
+}
+.sb-logo{padding:18px 16px 14px;font-size:16px;font-weight:800;color:#fff;letter-spacing:-0.5px;border-bottom:1px solid #2a2a45}
+.sb-logo em{color:#818cf8;font-style:normal}
+.sb-section{padding:12px 16px 4px;font-size:10px;font-weight:700;color:#4b5090;text-transform:uppercase;letter-spacing:1px}
+.sb-item{
+  display:flex;align-items:center;gap:10px;padding:8px 14px;
+  color:#9aa0c0;text-decoration:none;font-size:12px;cursor:pointer;
+  border-left:3px solid transparent;transition:all .15s;
+}
+.sb-item:hover{color:#fff;background:#22224a}
+.sb-item.active{color:#fff;background:#2d2d60;border-left-color:#818cf8;font-weight:600}
+.sb-icon{width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.sb-badge{margin-left:auto;background:#3d3d6e;color:#818cf8;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700}
+.sb-badge.done{background:#1a3a2a;color:#34d399}
+.sb-foot{padding:14px 16px;font-size:10px;color:#3d3d6e;border-top:1px solid #2a2a45;margin-top:auto}
+
+/* ─── 메인 영역 ─── */
+#main{margin-left:220px;padding:28px 32px;min-height:100vh}
+
+/* ─── 화면 헤더 ─── */
+.screen{display:none}
+.screen.active{display:block}
+.scr-header{margin-bottom:22px}
+.scr-id{font-size:10px;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:4px}
+.scr-title{font-size:22px;font-weight:800;color:#1e1e2e;margin-bottom:5px}
+.scr-desc{font-size:12px;color:#6b7280}
+
+/* ─── 와이어프레임 프레임 ─── */
+.wf{background:#fff;border:1.5px solid var(--c-border);border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.07);max-width:1100px}
+.wf-sm{max-width:720px}
+.wf-md{max-width:860px}
+
+/* ─── 앱 타이틀바 ─── */
+.titlebar{background:#f8f9fc;border-bottom:1px solid var(--c-border);padding:10px 16px;display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%}
+.dot.r{background:#ff5f57}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+.app-name{font-size:12px;font-weight:700;color:#374151;margin-left:8px}
+.bc{font-size:11px;color:#9ca3af}
+.bc-sep{color:#d1d5db;margin:0 4px}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+/* ─── 진행 단계 표시기 (Step Indicator) ─── */
+.steps{display:flex;align-items:center;padding:14px 28px;background:#f8f9fc;border-bottom:1px solid var(--c-border);gap:0}
+.step{display:flex;align-items:center;gap:8px;flex:1}
+.step-num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #d1d5db;color:#9ca3af;flex-shrink:0}
+.step-num.done{background:#818cf8;border-color:#818cf8;color:#fff}
+.step-num.active{background:#fff;border-color:#4f46e5;color:#4f46e5}
+.step-label{font-size:11px;color:#9ca3af;font-weight:500}
+.step-label.done{color:#818cf8;font-weight:600}
+.step-label.active{color:#4f46e5;font-weight:700}
+.step-line{flex:1;height:2px;background:#e5e7eb;margin:0 8px}
+.step-line.done{background:#818cf8}
+
+/* ─── 버튼 ─── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;white-space:nowrap}
+.btn-primary{background:#4f46e5;color:#fff}
+.btn-primary:hover{background:#4338ca}
+.btn-ghost{background:transparent;color:#4f46e5;border:1.5px solid #4f46e5}
+.btn-secondary{background:#fff;color:#374151;border:1.5px solid #d1d5db}
+.btn-danger{background:#fff;color:#ef4444;border:1.5px solid #fca5a5}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-lg{padding:11px 24px;font-size:13px}
+.btn-full{width:100%;justify-content:center}
+
+/* ─── 입력 요소 ─── */
+.input{width:100%;border:1.5px solid var(--c-border);border-radius:7px;padding:8px 12px;font-size:12px;color:#374151;background:#fafbff;outline:none}
+.input:focus{border-color:#818cf8}
+.textarea{width:100%;border:1.5px solid var(--c-border);border-radius:7px;padding:12px;font-size:13px;color:#374151;background:#fafbff;resize:vertical;min-height:130px;line-height:1.7;outline:none;font-family:inherit}
+.textarea:focus{border-color:#818cf8}
+.select{border:1.5px solid var(--c-border);border-radius:7px;padding:7px 10px;font-size:12px;background:#fafbff;color:#374151;width:100%}
+.label{font-size:11px;font-weight:700;color:#6b7280;margin-bottom:5px;display:block}
+
+/* ─── 테이블 ─── */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{background:#f3f4f8;font-size:11px;font-weight:700;color:#4b5563;padding:9px 12px;border:1px solid #e5e7eb;text-align:left}
+.tbl td{padding:9px 12px;border:1px solid #e8eaf0;font-size:12px;color:#374151;vertical-align:top}
+.tbl tr:hover td{background:#f9faff}
+.tbl .empty{color:#c4c9d4;font-style:italic}
+
+/* ─── 배지·태그 ─── */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.tag{display:inline-block;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;margin:2px}
+
+/* 문서별 배지 색상 */
+.b-logline{background:#ede9fe;color:var(--c-logline)}
+.b-synopsis{background:#dbeafe;color:var(--c-synopsis)}
+.b-plot{background:#d1fae5;color:var(--c-plot)}
+.b-treatment{background:#fef3c7;color:var(--c-treatment)}
+.b-bible{background:#cffafe;color:var(--c-bible)}
+.b-green{background:#d1fae5;color:#065f46}
+.b-red{background:#fee2e2;color:#991b1b}
+.b-gray{background:#f3f4f6;color:#4b5563}
+
+/* ─── 체크·라디오 ─── */
+.chk-item{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border:1.5px solid #e5e7eb;border-radius:9px;margin-bottom:8px;cursor:pointer}
+.chk-item:hover{background:#f5f5ff;border-color:#c4b5fd}
+.chk-item.selected{background:#f5f3ff;border-color:var(--c-logline)}
+.chk-box{width:17px;height:17px;border:2px solid #d1d5db;border-radius:4px;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:10px}
+.chk-box.on{background:#4f46e5;border-color:#4f46e5;color:#fff}
+.radio{width:17px;height:17px;border:2px solid #d1d5db;border-radius:50%;flex-shrink:0;margin-top:1px;position:relative}
+.radio.on{border-color:#4f46e5}
+.radio.on::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:#4f46e5}
+.chk-title{font-size:12px;font-weight:700;color:#1e1e2e}
+.chk-desc{font-size:11px;color:#6b7280;margin-top:2px}
+
+/* ─── 3패널 레이아웃 ─── */
+.three-panel{display:flex;min-height:520px}
+.binder{width:215px;flex-shrink:0;background:#f4f5f9;border-right:1px solid var(--c-border);padding:14px 0;overflow-y:auto}
+.editor{flex:1;padding:20px 24px;overflow:auto}
+.memo-col{width:215px;flex-shrink:0;background:#fafbfe;border-left:1px solid var(--c-border);padding:14px;overflow-y:auto}
+
+.bd-section{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;padding:10px 14px 4px;letter-spacing:.5px}
+.bd-work{padding:8px 14px;display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#1e1e2e;cursor:pointer}
+.bd-item{display:flex;align-items:center;gap:7px;padding:7px 14px 7px 26px;font-size:12px;color:#6b7280;cursor:pointer;border-left:3px solid transparent}
+.bd-item:hover{background:#ecedf5}
+.bd-item.active{background:#eef0ff;color:#4f46e5;font-weight:700;border-left-color:#4f46e5}
+.bd-sub{padding:5px 14px 5px 40px;font-size:11px;color:#9ca3af;cursor:pointer}
+.bd-sub:hover{background:#ecedf5}
+.bd-add{padding:8px 14px;font-size:11px;color:#4f46e5;cursor:pointer;display:flex;align-items:center;gap:4px}
+.bd-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+.tab-row{display:flex;border-bottom:1.5px solid var(--c-border);margin-bottom:16px;gap:0}
+.tab{padding:8px 16px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;color:#6b7280;margin-bottom:-1.5px}
+.tab.active{color:#4f46e5;border-bottom-color:#4f46e5;font-weight:700}
+
+/* ─── 로그라인 결과 박스 ─── */
+.logline-box{background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:2px solid var(--c-logline);border-radius:9px;padding:16px 20px}
+.logline-text{font-size:14px;font-weight:700;color:#3730a3;line-height:1.8}
+
+/* ─── AI 말풍선 ─── */
+.ai-tip{background:#f0f4ff;border-left:3px solid #818cf8;border-radius:0 8px 8px 0;padding:10px 14px;font-size:12px;color:#374151;line-height:1.6;margin-bottom:10px}
+
+/* ─── 패널 ─── */
+.panel{background:#f8f9fc;border:1px solid var(--c-border);border-radius:8px;padding:14px}
+.panel-t{font-size:11px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+
+/* ─── 진행바 ─── */
+.prog-bar{height:7px;background:#e5e7eb;border-radius:4px;overflow:hidden}
+.prog-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#818cf8,#4f46e5)}
+
+/* ─── 어노테이션 (화면 설명 말풍선) ─── */
+.ann-wrap{display:flex;gap:20px;align-items:flex-start;max-width:1100px}
+.ann-frame{flex:1}
+.ann-panel{width:240px;flex-shrink:0;background:#fff;border:1.5px solid #c7d2fe;border-radius:10px;padding:16px}
+.ann-panel h4{font-size:12px;font-weight:700;color:#4f46e5;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.ann-item{display:flex;gap:8px;margin-bottom:10px;align-items:flex-start}
+.ann-num{width:20px;height:20px;border-radius:50%;background:#4f46e5;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.ann-text{font-size:11px;color:#374151;line-height:1.6}
+.ann-text strong{color:#4f46e5;font-weight:700}
+
+/* ─── 칸막이 ─── */
+hr.div{border:none;border-top:1px solid var(--c-border);margin:14px 0}
+
+/* ─── 작품 카드 ─── */
+.work-card{border:1.5px solid var(--c-border);border-radius:10px;padding:16px;background:#fff;cursor:pointer;transition:all .15s}
+.work-card:hover{border-color:#818cf8;box-shadow:0 2px 12px rgba(79,70,229,.1)}
+.work-card.new-card{border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:160px;color:#c4c9d4}
+
+/* ─── 복선 트래커 ─── */
+.foreshadow-row.done td{text-decoration:line-through;color:#9ca3af;background:#f9fafb}
+
+/* ─── 체크리스트 아이템 ─── */
+.cl-item{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border:1.5px solid #e5e7eb;border-radius:9px;margin-bottom:7px}
+.cl-item.pass{border-color:#6ee7b7;background:#f0fdf4}
+.cl-item.fail{border-color:#fca5a5;background:#fff7f7}
+
+/* ─── 씬 번호 ─── */
+.scene-n{width:22px;height:22px;border-radius:50%;background:#4f46e5;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ─── 메모 패널 내부 ─── */
+.memo-sec{margin-bottom:14px}
+.memo-t{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:7px}
+.memo-chip{background:#eef0ff;color:#4f46e5;border-radius:6px;padding:6px 10px;font-size:11px;margin-bottom:4px}
+.memo-add{font-size:11px;color:#818cf8;cursor:pointer;padding:3px 0}
+
+/* ─── 플로우 다이어그램 ─── */
+.flow-box{background:#fff;border:2px solid #818cf8;border-radius:8px;padding:9px 18px;font-size:12px;font-weight:700;color:#312e81;cursor:pointer;white-space:nowrap;transition:all .15s}
+.flow-box:hover{background:#eef0ff}
+.flow-box.highlight{background:#eef0ff;border-color:#4f46e5}
+.flow-arrow-v{width:2px;height:26px;background:#c7d2fe;margin-left:30px}
+.flow-arrow-label{font-size:10px;color:#9ca3af;margin-left:10px}
+</style>
+</head>
+<body>
+
+<!-- ═══ 사이드바 ═══ -->
+<nav id="sidebar">
+  <div class="sb-logo">Novel<em>Forge</em></div>
+
+  <div class="sb-section">화면 흐름</div>
+  <div class="sb-item active" onclick="show('flow')">
+    <div class="sb-icon" style="background:#2d2d60">🗺</div> User Flow
+  </div>
+
+  <div class="sb-section">기본 화면</div>
+  <div class="sb-item" onclick="show('s01')">
+    <div class="sb-icon" style="background:#1e3a5f">🏠</div> S-01 작품 목록
+  </div>
+  <div class="sb-item" onclick="show('s02')">
+    <div class="sb-icon" style="background:#1e3a5f">⬛</div> S-02 메인 3패널
+  </div>
+
+  <div class="sb-section">새 작품 흐름 ①→③</div>
+  <div class="sb-item" onclick="show('s03')">
+    <div class="sb-icon" style="background:#3b1f6e">✏️</div> S-03 아이디어 입력
+    <span class="sb-badge">①</span>
+  </div>
+  <div class="sb-item" onclick="show('s04')">
+    <div class="sb-icon" style="background:#3b1f6e">💬</div> S-04 AI 확인 질문
+    <span class="sb-badge">②</span>
+  </div>
+  <div class="sb-item" onclick="show('s05')">
+    <div class="sb-icon" style="background:#3b1f6e">📋</div> S-05 문서 선택
+    <span class="sb-badge">③</span>
+  </div>
+
+  <div class="sb-section">문서 생성 결과</div>
+  <div class="sb-item" onclick="show('s06')">
+    <div class="sb-icon" style="background:#4a1d6e">🟣</div> S-06 로그라인
+    <span class="sb-badge done">완료</span>
+  </div>
+  <div class="sb-item" onclick="show('s07')">
+    <div class="sb-icon" style="background:#1e3a6e">🔵</div> S-07 시놉시스
+  </div>
+  <div class="sb-item" onclick="show('s08')">
+    <div class="sb-icon" style="background:#14473a">🟢</div> S-08 플롯
+  </div>
+  <div class="sb-item" onclick="show('s09')">
+    <div class="sb-icon" style="background:#5c3010">🟠</div> S-09 트리트먼트
+  </div>
+  <div class="sb-item" onclick="show('s10')">
+    <div class="sb-icon" style="background:#0a3d42">🔷</div> S-10 스토리 바이블
+  </div>
+
+  <div class="sb-section">관리 도구</div>
+  <div class="sb-item" onclick="show('s11')">
+    <div class="sb-icon" style="background:#4a1515">🔴</div> S-11 복선 트래커
+  </div>
+  <div class="sb-item" onclick="show('s12')">
+    <div class="sb-icon" style="background:#1e1e2e">✨</div> S-12 성공 패턴 체크
+  </div>
+  <div class="sb-item" onclick="show('s13')">
+    <div class="sb-icon" style="background:#1e1e2e">💾</div> S-13 저장·내보내기
+  </div>
+  <div class="sb-foot">Planning.md v1.0 기준<br>NovelForge 와이어프레임 v2</div>
+</nav>
+
+<!-- ═══ 메인 ═══ -->
+<main id="main">
+
+<!-- ──────────────── USER FLOW ──────────────── -->
+<section id="flow" class="screen active">
+  <div class="scr-header">
+    <div class="scr-id">User Flow</div>
+    <div class="scr-title">화면 흐름 전체 다이어그램</div>
+    <div class="scr-desc">박스를 클릭하면 해당 화면으로 이동합니다. Planning.md 12장 8단계 기반.</div>
+  </div>
+  <div class="wf" style="max-width:720px;padding:32px 40px;background:#fff;">
+    <div style="display:flex;flex-direction:column;align-items:flex-start">
+
+      <div class="flow-box" onclick="show('s01')">S-01 &nbsp; 작품 목록 (Dashboard)</div>
+      <div class="flow-arrow-v"></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="flow-box" onclick="show('s02')">S-02 &nbsp; 메인 화면 (바인더 · 편집 · 메모)</div>
+        <span style="font-size:11px;color:#9ca3af">작품 선택</span>
+      </div>
+      <div class="flow-arrow-v"></div>
+
+      <!-- 새 작품 흐름 -->
+      <div style="background:#f5f3ff;border:1.5px dashed #818cf8;border-radius:10px;padding:16px 20px;">
+        <div style="font-size:11px;font-weight:700;color:#818cf8;margin-bottom:12px">새 작품 기획 흐름 (①→③)</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-start">
+          <div class="flow-box highlight" onclick="show('s03')" style="width:280px">S-03 &nbsp; ① 아이디어 자유 입력</div>
+          <div class="flow-arrow-v"></div>
+          <div class="flow-box highlight" onclick="show('s04')" style="width:280px">S-04 &nbsp; ② AI 확인 질문 (2~3개)</div>
+          <div class="flow-arrow-v"></div>
+          <div class="flow-box highlight" onclick="show('s05')" style="width:280px">S-05 &nbsp; ③ 문서 선택 (독립 선택)</div>
+        </div>
+      </div>
+      <div class="flow-arrow-v"></div>
+
+      <!-- 문서 생성 분기 -->
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:16px 20px;width:100%">
+        <div style="font-size:11px;font-weight:700;color:#4b5563;margin-bottom:12px">④ 문서 생성 (선택한 문서만 · 독립 생성)</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div class="flow-box" onclick="show('s06')" style="border-color:var(--c-logline);color:var(--c-logline);font-size:11px;padding:7px 12px">🟣 S-06 로그라인</div>
+          <div class="flow-box" onclick="show('s07')" style="border-color:var(--c-synopsis);color:var(--c-synopsis);font-size:11px;padding:7px 12px">🔵 S-07 시놉시스</div>
+          <div class="flow-box" onclick="show('s08')" style="border-color:var(--c-plot);color:var(--c-plot);font-size:11px;padding:7px 12px">🟢 S-08 플롯</div>
+          <div class="flow-box" onclick="show('s09')" style="border-color:var(--c-treatment);color:var(--c-treatment);font-size:11px;padding:7px 12px">🟠 S-09 트리트먼트</div>
+          <div class="flow-box" onclick="show('s10')" style="border-color:var(--c-bible);color:var(--c-bible);font-size:11px;padding:7px 12px">🔷 S-10 스토리 바이블</div>
+        </div>
+      </div>
+      <div class="flow-arrow-v"></div>
+
+      <div style="display:flex;gap:10px">
+        <div class="flow-box" onclick="show('s12')" style="font-size:11px;padding:7px 14px;border-color:#6b7280;color:#374151">⑥ S-12 성공 패턴 체크 <span style="color:#9ca3af">(선택)</span></div>
+        <div class="flow-box" onclick="show('s13')" style="font-size:11px;padding:7px 14px">⑦ S-13 저장·내보내기</div>
+      </div>
+      <div class="flow-arrow-v"></div>
+      <div class="flow-box" onclick="show('s11')" style="border-color:#dc2626;color:#dc2626">⑧ S-11 복선 트래커 (장기 연재 관리)</div>
+    </div>
+
+    <!-- 문서 타입 범례 -->
+    <hr class="div" style="margin-top:24px">
+    <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:10px">문서 타입 색상 범례</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <span class="tag b-logline">🟣 로그라인</span>
+      <span class="tag b-synopsis">🔵 시놉시스</span>
+      <span class="tag b-plot">🟢 플롯</span>
+      <span class="tag b-treatment">🟠 트리트먼트</span>
+      <span class="tag b-bible">🔷 스토리 바이블</span>
+      <span class="tag" style="background:#fee2e2;color:#991b1b">🔴 복선 트래커</span>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-01 작품 목록 ──────────────── -->
+<section id="s01" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-01</div>
+    <div class="scr-title">작품 목록 (Dashboard)</div>
+    <div class="scr-desc">로그인 직후 첫 화면. 내 작품 카드 그리드 + 새 작품 시작 진입점.</div>
+  </div>
+  <div class="ann-wrap">
+    <div class="ann-frame">
+      <div class="wf">
+        <div class="titlebar">
+          <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+          <span class="app-name">NovelForge</span>
+          <div class="tb-right"><button class="btn btn-secondary btn-sm">dlgyqls0608@gmail.com ▾</button></div>
+        </div>
+        <div style="padding:28px 32px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+            <div>
+              <div style="font-size:20px;font-weight:800">내 작품</div>
+              <div style="font-size:12px;color:#6b7280;margin-top:3px">2개 작성중 · 1개 완결</div>
+            </div>
+            <button class="btn btn-primary btn-lg">＋ 새 작품 시작</button>
+          </div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <!-- 카드 1 -->
+            <div class="work-card" style="width:220px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <span style="font-size:22px">📁</span>
+                <span class="badge b-logline">로그라인 완료</span>
+              </div>
+              <div style="font-weight:800;font-size:13px;margin-bottom:6px">재벌 비서 회귀</div>
+              <div style="margin-bottom:8px"><span class="tag b-logline" style="font-size:10px">회귀</span><span class="tag b-synopsis" style="font-size:10px">복수극</span></div>
+              <div class="prog-bar" style="margin-bottom:6px"><div class="prog-fill" style="width:60%"></div></div>
+              <div style="font-size:10px;color:#6b7280;margin-bottom:10px">트리트먼트 작성중 (60%)</div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-primary btn-sm" style="flex:1;justify-content:center">열기</button>
+                <button class="btn btn-danger btn-sm">삭제</button>
+              </div>
+              <div style="font-size:10px;color:#c4c9d4;margin-top:8px">수정: 2026-06-10</div>
+            </div>
+            <!-- 카드 2 -->
+            <div class="work-card" style="width:220px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <span style="font-size:22px">📁</span>
+                <span class="badge b-plot">플롯 작성중</span>
+              </div>
+              <div style="font-weight:800;font-size:13px;margin-bottom:6px">헌터 아카데미</div>
+              <div style="margin-bottom:8px"><span class="tag b-plot" style="font-size:10px">헌터물</span><span class="tag b-bible" style="font-size:10px">성장</span></div>
+              <div class="prog-bar" style="margin-bottom:6px"><div class="prog-fill" style="width:30%"></div></div>
+              <div style="font-size:10px;color:#6b7280;margin-bottom:10px">로그라인 완료 (30%)</div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-primary btn-sm" style="flex:1;justify-content:center">열기</button>
+                <button class="btn btn-danger btn-sm">삭제</button>
+              </div>
+              <div style="font-size:10px;color:#c4c9d4;margin-top:8px">수정: 2026-06-08</div>
+            </div>
+            <!-- 새 작품 카드 -->
+            <div class="work-card new-card" style="width:220px" onclick="show('s03')">
+              <div style="font-size:30px;margin-bottom:8px">＋</div>
+              <div style="font-size:12px">새 아이디어 시작</div>
+            </div>
+          </div>
+          <hr class="div" style="margin-top:28px">
+          <div style="display:flex;justify-content:space-between;align-items:center;color:#9ca3af;font-size:12px">
+            <span>완결 작품 (1)</span>
+            <span style="cursor:pointer;color:#818cf8">펼치기 ▸</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ann-panel">
+      <h4>① 이 화면 안내</h4>
+      <div class="ann-item"><div class="ann-num">1</div><div class="ann-text"><strong>작품 카드</strong> — 진행률 바로 현재 완성도 한눈에 파악</div></div>
+      <div class="ann-item"><div class="ann-num">2</div><div class="ann-text"><strong>배지 색상</strong> — 문서 타입별 색상으로 어디까지 왔는지 즉시 구분</div></div>
+      <div class="ann-item"><div class="ann-num">3</div><div class="ann-text"><strong>새 작품 시작 버튼</strong> — 상단 우측(가장 눈에 띄는 위치)에 고정 배치</div></div>
+      <div class="ann-item"><div class="ann-num">4</div><div class="ann-text"><strong>완결 작품</strong> — 기본 접힘 처리로 화면 정리</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-02 메인 3패널 ──────────────── -->
+<section id="s02" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-02</div>
+    <div class="scr-title">메인 화면 — 3패널 레이아웃</div>
+    <div class="scr-desc">Scrivener 구조 기반. 바인더(좌) · 편집·미리보기(중) · 메모(우) 3영역 분리.</div>
+  </div>
+  <div class="ann-wrap">
+    <div class="ann-frame">
+      <div class="wf">
+        <div class="titlebar">
+          <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+          <span class="app-name">NovelForge</span>
+          <span class="bc-sep">/</span><span class="bc">재벌 비서 회귀</span>
+          <div class="tb-right"><button class="btn btn-primary btn-sm">＋ 아이디어 입력</button></div>
+        </div>
+        <div class="three-panel">
+          <!-- 바인더 -->
+          <div class="binder">
+            <div class="bd-section">내 작품</div>
+            <div class="bd-work">📁 재벌 비서 회귀</div>
+            <div class="bd-item" style="padding-left:14px;color:#9ca3af;font-size:11px">문서 목록</div>
+            <div class="bd-item" style="display:flex;align-items:center;justify-content:space-between;padding-right:10px">
+              <span style="display:flex;align-items:center;gap:7px"><span class="bd-dot" style="background:var(--c-logline)"></span>로그라인</span>
+              <span class="badge b-logline" style="font-size:9px">완료</span>
+            </div>
+            <div class="bd-item active" style="display:flex;align-items:center;justify-content:space-between;padding-right:10px">
+              <span style="display:flex;align-items:center;gap:7px"><span class="bd-dot" style="background:var(--c-synopsis)"></span>시놉시스</span>
+            </div>
+            <div class="bd-item" style="display:flex;align-items:center;justify-content:space-between;padding-right:10px">
+              <span style="display:flex;align-items:center;gap:7px"><span class="bd-dot" style="background:var(--c-plot)"></span>플롯</span>
+            </div>
+            <div class="bd-item" style="display:flex;align-items:center;justify-content:space-between;padding-right:10px">
+              <span style="display:flex;align-items:center;gap:7px"><span class="bd-dot" style="background:var(--c-treatment)"></span>트리트먼트</span>
+              <span style="color:#9ca3af;font-size:10px">▾</span>
+            </div>
+            <div class="bd-sub">└ 1화</div>
+            <div class="bd-sub">└ 2화</div>
+            <div class="bd-sub" style="color:#c4c9d4">└ ···</div>
+            <div class="bd-item" style="display:flex;align-items:center;gap:7px">
+              <span class="bd-dot" style="background:var(--c-bible)"></span>스토리 바이블
+            </div>
+            <div class="bd-item" style="display:flex;align-items:center;gap:7px">
+              <span class="bd-dot" style="background:var(--c-foreshadow)"></span>복선 트래커
+            </div>
+            <hr class="div" style="margin:8px 14px">
+            <div class="bd-add">＋ 새 아크 추가</div>
+          </div>
+
+          <!-- 편집 공간 -->
+          <div class="editor">
+            <div class="tab-row">
+              <div class="tab active">시놉시스</div>
+              <div class="tab">플롯</div>
+              <div class="tab">트리트먼트</div>
+            </div>
+            <div style="margin-bottom:12px"><span class="tag b-synopsis">현대</span><span class="tag b-synopsis">회귀</span><span class="tag b-synopsis">통쾌한 복수극</span></div>
+            <table class="tbl" style="margin-bottom:14px">
+              <tr><th style="width:80px">구분</th><th>내용</th></tr>
+              <tr><td><span class="badge b-synopsis">발단</span></td><td>10년 전 회귀 직후, 기억과 다른 현실을 마주함.</td></tr>
+              <tr><td><span class="badge b-synopsis">전개</span></td><td>재벌가 내부 재침투, 단서가 엉뚱한 인물을 가리킴.</td></tr>
+              <tr><td><span class="badge b-synopsis" style="background:#fef3c7;color:#92400e">위기</span></td><td>진범이 주인공의 정체를 의심하기 시작.</td></tr>
+              <tr><td><span class="badge b-synopsis" style="background:#fef3c7;color:#92400e">절정</span></td><td>핵심 증거 확보, 진범과 최종 대결.</td></tr>
+              <tr><td><span class="empty">결말</span></td><td class="empty">클릭하여 작성…</td></tr>
+            </table>
+            <hr class="div">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-ghost btn-sm">AI 재생성</button>
+              <button class="btn btn-secondary btn-sm">수동 수정</button>
+              <button class="btn btn-secondary btn-sm">Notion 저장</button>
+              <button class="btn btn-secondary btn-sm">Docs 내보내기</button>
+              <button class="btn btn-ghost btn-sm" style="margin-left:auto">✨ 성공 패턴 체크</button>
+            </div>
+          </div>
+
+          <!-- 메모 패널 -->
+          <div class="memo-col">
+            <div class="memo-sec">
+              <div class="memo-t">📌 작가 메모</div>
+              <div class="input" style="font-size:11px;color:#c4c9d4;padding:8px 10px;min-height:52px;cursor:text">메모 입력…</div>
+              <div class="memo-add">＋ 추가</div>
+            </div>
+            <hr class="div">
+            <div class="memo-sec">
+              <div class="memo-t">🔴 복선 메모</div>
+              <div class="memo-chip" style="background:#fee2e2;color:#991b1b">손목 시계 → 38화 회수</div>
+              <div class="memo-add">＋ 추가</div>
+            </div>
+            <hr class="div">
+            <div class="memo-sec">
+              <div class="memo-t">💬 핵심 대사</div>
+              <div class="memo-chip" style="background:#fef3c7;color:#92400e">"이번엔 내가 먼저야."</div>
+              <div class="memo-add">＋ 추가</div>
+            </div>
+            <hr class="div">
+            <div class="memo-sec">
+              <div class="memo-t">📅 다음 할 일</div>
+              <div style="display:flex;align-items:center;gap:7px;font-size:11px;padding:3px 0;color:#374151"><div class="chk-box"></div>3화 트리트먼트</div>
+              <div style="display:flex;align-items:center;gap:7px;font-size:11px;padding:3px 0;color:#374151"><div class="chk-box"></div>시놉시스 결말 작성</div>
+              <div class="memo-add">＋ 추가</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ann-panel">
+      <h4>② 3패널 구조 안내</h4>
+      <div class="ann-item"><div class="ann-num">1</div><div class="ann-text"><strong>바인더(좌)</strong> — 작품·문서 계층. 문서 타입별 색상 점으로 즉시 구분</div></div>
+      <div class="ann-item"><div class="ann-num">2</div><div class="ann-text"><strong>편집 공간(중)</strong> — AI 생성 결과 표시. 탭으로 문서 전환. 직접 수정 가능</div></div>
+      <div class="ann-item"><div class="ann-num">3</div><div class="ann-text"><strong>메모 패널(우)</strong> — 복선·대사·할 일을 빠르게 메모. 집필 중 아이디어 즉시 기록</div></div>
+      <div class="ann-item"><div class="ann-num">4</div><div class="ann-text"><strong>완료 배지</strong> — 로그라인에 "완료" 표시로 진행 상황 즉시 파악</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-03 아이디어 입력 ──────────────── -->
+<section id="s03" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-03 &nbsp;·&nbsp; 새 작품 흐름 1단계</div>
+    <div class="scr-title">아이디어 입력</div>
+    <div class="scr-desc">자유 형식 텍스트. 두리뭉술해도 미완성이어도 괜찮음.</div>
+  </div>
+  <div class="wf wf-sm">
+    <div class="titlebar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">새 작품</span>
+      <div class="tb-right"><button class="btn btn-secondary btn-sm">← 뒤로</button></div>
+    </div>
+    <!-- 단계 표시기 -->
+    <div class="steps">
+      <div class="step">
+        <div class="step-num active">1</div>
+        <div class="step-label active">아이디어 입력</div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-label">AI 확인 질문</div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-label">문서 선택</div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-label">생성 완료</div>
+      </div>
+    </div>
+    <div style="padding:28px 32px">
+      <div style="font-size:18px;font-weight:800;margin-bottom:4px">아이디어를 자유롭게 적어주세요</div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:20px">문법·완성도 상관없어요. AI가 알아서 정리해 드립니다.</div>
+
+      <div class="ai-tip">💡 &nbsp;예시: "재벌 비서로 일하다 죽은 여자가 10년 전으로 돌아가서 자신을 죽인 진범을 찾는 이야기"처럼 짧게 써도 됩니다.</div>
+
+      <label class="label">내 아이디어 *</label>
+      <textarea class="textarea" style="height:160px">재벌 비서로 일하다가 억울하게 죽은 여자가 10년 전으로 돌아가서 자기를 버린 재벌 집안에 복수하는 이야기인데, 근데 막상 돌아와보니 자기를 죽인 게 재벌 회장 아들이 아니라 회사 임원 중 한 명이었다는 걸 알게 되는 거</textarea>
+      <div style="text-align:right;font-size:10px;color:#c4c9d4;margin-top:3px">196 / 2000자</div>
+
+      <hr class="div">
+      <div style="font-size:12px;font-weight:700;color:#4b5563;margin-bottom:12px">힌트 &nbsp;<span style="font-weight:400;color:#c4c9d4">선택 사항 — 없어도 됩니다</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div><label class="label">장르·분위기</label><select class="select"><option>현대판타지 / 회귀 / 복수극</option></select></div>
+        <div><label class="label">결말 방향</label><select class="select"><option>선택 안 함</option><option>해피엔딩</option><option>새드엔딩</option></select></div>
+      </div>
+      <div>
+        <label class="label">로맨스 비중</label>
+        <div style="display:flex;gap:16px;margin-top:5px">
+          <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer"><div class="radio"></div>주요 라인</label>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer"><div class="radio on"></div>서브 라인</label>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer"><div class="radio"></div>없음</label>
+        </div>
+      </div>
+      <hr class="div">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <button class="btn btn-secondary">건너뛰고 문서 선택 →</button>
+        <button class="btn btn-primary btn-lg" onclick="show('s04')">AI에게 보내기 →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-04 AI 확인 질문 ──────────────── -->
+<section id="s04" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-04 &nbsp;·&nbsp; 새 작품 흐름 2단계</div>
+    <div class="scr-title">AI 확인 질문</div>
+    <div class="scr-desc">2~3개 최소 질문. "모르겠다" 항상 선택 가능. 미확인 항목은 빈 칸 처리.</div>
+  </div>
+  <div class="wf wf-sm">
+    <div class="titlebar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">새 작품</span><span class="bc-sep">/</span><span class="bc">AI 확인 질문</span>
+      <div class="tb-right"><button class="btn btn-secondary btn-sm">← 수정</button></div>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-num done">✓</div><div class="step-label done">아이디어 입력</div></div>
+      <div class="step-line done"></div>
+      <div class="step"><div class="step-num active">2</div><div class="step-label active">AI 확인 질문</div></div>
+      <div class="step-line"></div>
+      <div class="step"><div class="step-num">3</div><div class="step-label">문서 선택</div></div>
+      <div class="step-line"></div>
+      <div class="step"><div class="step-num">4</div><div class="step-label">생성 완료</div></div>
+    </div>
+    <div style="padding:24px 32px">
+      <div class="panel" style="margin-bottom:18px">
+        <div class="panel-t">입력하신 아이디어</div>
+        <div style="font-size:12px;color:#374151;line-height:1.7">"재벌 비서로 일하다가 억울하게 죽은 여자가 10년 전으로 돌아가서… 자기를 죽인 게 재벌 회장 아들이 아니라 회사 임원 중 한 명이었다는 걸 알게 되는 거"</div>
+      </div>
+      <div class="ai-tip">방향을 조금 더 알려주시면 더 잘 정리해 드릴 수 있어요. &nbsp;<strong>"모르겠다"</strong>를 고르면 빈 칸으로 두고 나머지를 먼저 만들어 드립니다.</div>
+
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;margin-top:18px">Q1. 이야기의 분위기는?</div>
+      <div class="chk-item selected"><div class="radio on"></div><div><div class="chk-title">통쾌한 복수극</div><div class="chk-desc">적을 하나씩 무너뜨리는 카타르시스</div></div></div>
+      <div class="chk-item"><div class="radio"></div><div><div class="chk-title">서스펜스·스릴러</div><div class="chk-desc">진범을 찾아가는 긴장감 위주</div></div></div>
+      <div class="chk-item"><div class="radio"></div><div><div class="chk-title">멜로 중심</div></div></div>
+      <div class="chk-item"><div class="radio"></div><div><div class="chk-title">모르겠다</div></div></div>
+
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;margin-top:18px">Q2. 결말 방향은?</div>
+      <div class="chk-item"><div class="radio"></div><div><div class="chk-title">성공 (완전한 복수 + 해피엔딩)</div></div></div>
+      <div class="chk-item"><div class="radio"></div><div><div class="chk-title">성공하지만 대가를 치른다</div></div></div>
+      <div class="chk-item"><div class="radio"></div><div><div class="chk-title">복수보다 더 중요한 것을 택한다</div></div></div>
+      <div class="chk-item"><div class="radio"></div><div><div class="chk-title">모르겠다</div></div></div>
+
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;margin-top:18px">Q3. 로맨스 상대가 있다면?</div>
+      <input class="input" type="text" placeholder="예: 재벌 회장 아들 / 없음">
+
+      <hr class="div">
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn btn-primary btn-lg" onclick="show('s05')">다음: 문서 선택 →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-05 문서 선택 ──────────────── -->
+<section id="s05" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-05 &nbsp;·&nbsp; 새 작품 흐름 3단계</div>
+    <div class="scr-title">문서 선택</div>
+    <div class="scr-desc">5종 독립 선택. 하나만 골라도 무방. 순서대로 하나씩 생성.</div>
+  </div>
+  <div class="wf wf-sm">
+    <div class="titlebar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">새 작품</span><span class="bc-sep">/</span><span class="bc">문서 선택</span>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-num done">✓</div><div class="step-label done">아이디어 입력</div></div>
+      <div class="step-line done"></div>
+      <div class="step"><div class="step-num done">✓</div><div class="step-label done">AI 확인 질문</div></div>
+      <div class="step-line done"></div>
+      <div class="step"><div class="step-num active">3</div><div class="step-label active">문서 선택</div></div>
+      <div class="step-line"></div>
+      <div class="step"><div class="step-num">4</div><div class="step-label">생성 완료</div></div>
+    </div>
+    <div style="padding:24px 32px">
+      <div style="font-size:16px;font-weight:800;margin-bottom:4px">어떤 문서를 만들까요?</div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:20px">하나만 선택해도 됩니다. 나머지는 나중에 언제든 따로 만들 수 있어요.</div>
+
+      <div class="chk-item selected" style="border-color:var(--c-logline);background:#faf5ff">
+        <div class="chk-box on">✓</div>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="chk-title" style="color:var(--c-logline)">🟣 로그라인</div>
+            <span class="badge b-logline">1~2문장</span>
+          </div>
+          <div class="chk-desc">아이디어를 1~2문장으로 압축 — 아이디어 검증 · 플랫폼 피칭용</div>
+        </div>
+      </div>
+      <div class="chk-item">
+        <div class="chk-box"></div>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="chk-title" style="color:var(--c-synopsis)">🔵 시놉시스</div>
+            <span class="badge b-synopsis">1~15페이지</span>
+          </div>
+          <div class="chk-desc">전체 이야기 5단 구조 (결말 포함) — 편집자 제출 · 방향 설정용</div>
+        </div>
+      </div>
+      <div class="chk-item">
+        <div class="chk-box"></div>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="chk-title" style="color:var(--c-plot)">🟢 플롯</div>
+            <span class="badge b-plot">표 형식</span>
+          </div>
+          <div class="chk-desc">10화 블록 단위 감정흐름·갈등·장면표 — 연재 전 호흡 조율용</div>
+        </div>
+      </div>
+      <div class="chk-item">
+        <div class="chk-box"></div>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="chk-title" style="color:var(--c-treatment)">🟠 트리트먼트</div>
+            <span class="badge b-treatment">회차 카드</span>
+          </div>
+          <div class="chk-desc">회차별 장면·감정·복선 세부 설계 — 집필 직전 머릿속 그림 고정용</div>
+        </div>
+      </div>
+      <div class="chk-item">
+        <div class="chk-box"></div>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="chk-title" style="color:var(--c-bible)">🔷 스토리 바이블</div>
+            <span class="badge b-bible">참조 문서</span>
+          </div>
+          <div class="chk-desc">인물·세계관·용어 설정집 — 장기 연재 일관성 유지용</div>
+        </div>
+      </div>
+
+      <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:7px;padding:10px 14px;font-size:11px;color:#92400e;margin-top:4px">
+        ⚠️ 동시 생성이 아닙니다. 선택한 문서를 순서대로 하나씩 만들어 드립니다.
+      </div>
+      <hr class="div">
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn btn-primary btn-lg" onclick="show('s06')">로그라인 생성 시작 →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-06 로그라인 ──────────────── -->
+<section id="s06" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-06</div>
+    <div class="scr-title" style="color:var(--c-logline)">🟣 로그라인 결과</div>
+    <div class="scr-desc">5개 항목 → 완성 로그라인. 각 셀 클릭 시 인라인 편집 가능.</div>
+  </div>
+  <div class="ann-wrap">
+    <div class="ann-frame">
+      <div class="wf wf-md">
+        <div class="titlebar" style="border-bottom-color:var(--c-logline)">
+          <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+          <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">재벌 비서 회귀</span><span class="bc-sep">/</span><span class="bc" style="color:var(--c-logline);font-weight:700">로그라인</span>
+          <div class="tb-right"><button class="btn btn-secondary btn-sm">← 바인더</button></div>
+        </div>
+        <div style="padding:22px 28px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div style="font-size:16px;font-weight:800">📄 로그라인</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-ghost btn-sm">AI 재생성</button>
+              <button class="btn btn-secondary btn-sm">수동 수정</button>
+              <button class="btn btn-primary btn-sm">저장</button>
+            </div>
+          </div>
+          <table class="tbl" style="margin-bottom:14px">
+            <tr><th style="width:140px">항목</th><th>내용 <span style="font-weight:400;color:#9ca3af">(클릭하여 수정)</span></th></tr>
+            <tr><td>주인공</td><td>재벌가 비서</td></tr>
+            <tr><td>출발 사건</td><td>억울한 죽음 뒤 10년 전으로 회귀</td></tr>
+            <tr><td>핵심 목표</td><td>자신을 죽인 진범 색출 및 복수</td></tr>
+            <tr><td>핵심 장애</td><td>재벌 권력망 안에서 진실 접근 불가</td></tr>
+            <tr><td>차별 요소</td><td>예상 복수 대상이 아닌 숨겨진 진범</td></tr>
+          </table>
+          <div class="logline-box">
+            <div style="font-size:10px;font-weight:700;color:var(--c-logline);margin-bottom:8px">✨ 완성 로그라인</div>
+            <div class="logline-text">"억울한 죽음 뒤 10년 전으로 돌아온 재벌 비서가, 자신을 죽인 진짜 범인이 예상과 다름을 깨닫고 재벌 권력망 안에서 진실을 파헤치는 이야기"</div>
+            <div style="text-align:right;margin-top:10px"><button class="btn btn-ghost btn-sm" style="border-color:var(--c-logline);color:var(--c-logline)">복사</button></div>
+          </div>
+          <hr class="div">
+          <div style="display:flex;justify-content:space-between">
+            <button class="btn btn-secondary" onclick="show('s05')">← 문서 선택으로</button>
+            <button class="btn btn-primary" onclick="show('s07')">다음: 시놉시스 만들기 →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ann-panel">
+      <h4>🟣 로그라인 안내</h4>
+      <div class="ann-item"><div class="ann-num">1</div><div class="ann-text"><strong>5개 항목 분해표</strong> — AI가 입력에서 추출한 구성 요소 각각 확인·수정 가능</div></div>
+      <div class="ann-item"><div class="ann-num">2</div><div class="ann-text"><strong>완성 로그라인</strong> — 5항목을 1~2문장으로 조합한 최종 결과. 클릭 복사 지원</div></div>
+      <div class="ann-item"><div class="ann-num">3</div><div class="ann-text">항목 수정 시 <strong>AI 재생성</strong>으로 로그라인 즉시 갱신 가능</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-07 시놉시스 ──────────────── -->
+<section id="s07" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-07</div>
+    <div class="scr-title" style="color:var(--c-synopsis)">🔵 시놉시스 결과</div>
+    <div class="scr-desc">장르 키워드 + 주인공 욕망 + 5단 구조 + 핵심 주제.</div>
+  </div>
+  <div class="wf wf-md">
+    <div class="titlebar" style="border-bottom-color:var(--c-synopsis)">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">재벌 비서 회귀</span><span class="bc-sep">/</span><span class="bc" style="color:var(--c-synopsis);font-weight:700">시놉시스</span>
+      <div class="tb-right"><div style="display:flex;gap:8px"><button class="btn btn-ghost btn-sm">AI 재생성</button><button class="btn btn-secondary btn-sm">수동 수정</button><button class="btn btn-primary btn-sm">저장</button></div></div>
+    </div>
+    <div style="padding:22px 28px">
+      <div style="margin-bottom:14px"><label class="label">장르·분위기</label><div style="margin-top:4px"><span class="tag b-synopsis">현대</span><span class="tag b-synopsis">회귀</span><span class="tag b-synopsis">통쾌한 복수극</span></div></div>
+      <div style="margin-bottom:16px"><label class="label">주인공 핵심 욕망</label><div class="panel" style="margin-top:4px;font-size:12px">자신을 죽인 진범의 이름을 밝히고, 재벌가 전체를 무너뜨려야 한다.</div></div>
+      <table class="tbl" style="margin-bottom:16px">
+        <tr><th style="width:80px">구분</th><th>내용</th></tr>
+        <tr><td><span class="badge b-synopsis">발단</span></td><td>10년 전 회귀 직후, 기억과 다른 현실을 마주함. 죽음의 경위 재추적 시작.</td></tr>
+        <tr><td><span class="badge b-synopsis">전개</span></td><td>재벌가 내부 재침투, 회장 아들 접근. 단서가 엉뚱한 인물을 가리킴.</td></tr>
+        <tr><td><span class="badge b-treatment" style="background:#fef3c7;color:#92400e">위기</span></td><td>진범이 주인공 정체 의심. 회귀 사실 발각 위기.</td></tr>
+        <tr><td><span class="badge b-treatment" style="background:#fef3c7;color:#92400e">절정</span></td><td>핵심 증거 확보. 진범과의 최종 대결.</td></tr>
+        <tr><td class="empty">결말</td><td class="empty" style="cursor:pointer">클릭하여 작성…</td></tr>
+      </table>
+      <div style="margin-bottom:16px"><label class="label">핵심 주제</label><div class="input empty" style="padding:10px 12px;margin-top:4px;cursor:pointer">클릭하여 작성…</div></div>
+      <hr class="div">
+      <div style="display:flex;justify-content:space-between">
+        <button class="btn btn-secondary" onclick="show('s06')">← 로그라인으로</button>
+        <button class="btn btn-primary" onclick="show('s08')">다음: 플롯 만들기 →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-08 플롯 ──────────────── -->
+<section id="s08" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-08</div>
+    <div class="scr-title" style="color:var(--c-plot)">🟢 플롯 결과 (10화 블록)</div>
+    <div class="scr-desc">10화 = 1아크. 아크 탭 전환. 이완 화(4화)는 배경색으로 시각 구분.</div>
+  </div>
+  <div class="wf">
+    <div class="titlebar" style="border-bottom-color:var(--c-plot)">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">재벌 비서 회귀</span><span class="bc-sep">/</span><span class="bc" style="color:var(--c-plot);font-weight:700">플롯</span>
+      <div class="tb-right"><div style="display:flex;gap:8px"><button class="btn btn-ghost btn-sm">AI 재생성</button><button class="btn btn-secondary btn-sm">수동 수정</button><button class="btn btn-primary btn-sm">저장</button></div></div>
+    </div>
+    <div style="padding:22px 28px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div class="tab-row" style="margin-bottom:0;flex:1">
+          <div class="tab active" style="color:var(--c-plot);border-bottom-color:var(--c-plot)">1아크 (1~10화)</div>
+          <div class="tab">2아크 (11~20화)</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="flex-shrink:0">＋ 아크 추가</button>
+      </div>
+      <div style="font-size:11px;color:#6b7280;margin-bottom:10px">1아크 — 회귀와 진실의 시작 &nbsp;·&nbsp; <span style="color:#9ca3af">긴장 3화 → <span style="color:var(--c-treatment)">이완 1화</span> → 긴장 재상승 패턴</span></div>
+      <div style="overflow-x:auto">
+        <table class="tbl">
+          <tr><th style="width:50px;text-align:center">회차</th><th style="width:130px">감정 흐름</th><th style="width:120px">주요 갈등</th><th>핵심 장면</th><th style="width:110px">클리프행어</th></tr>
+          <tr><td style="text-align:center;font-weight:700">1화</td><td>호기심·낯섦</td><td>—</td><td>주인공 소개, 회귀 순간</td><td><span class="badge b-logline">충격 발언형</span></td></tr>
+          <tr><td style="text-align:center;font-weight:700">2화</td><td>긴장 고조</td><td>내적 갈등</td><td>과거와 다른 점 첫 발견</td><td><span class="badge b-synopsis">위기 직전 컷</span></td></tr>
+          <tr><td style="text-align:center;font-weight:700">3화</td><td>경계·탐색</td><td>정보 갈등</td><td>진범 단서 첫 포착</td><td><span class="badge b-synopsis">비밀 발각형</span></td></tr>
+          <tr style="background:#fffbeb"><td style="text-align:center;font-weight:700;color:var(--c-treatment)">4화</td><td style="color:var(--c-treatment)">이완·웃음 😊</td><td>관계 갈등</td><td>로맨스 복선</td><td><span class="badge b-treatment">인물 등장형</span></td></tr>
+          <tr><td style="text-align:center;font-weight:700;color:#c4c9d4">5~9화</td><td class="empty">클릭하여 작성</td><td class="empty">클릭하여 작성</td><td class="empty">클릭하여 작성</td><td class="empty">—</td></tr>
+          <tr style="background:#f0fdf4"><td style="text-align:center;font-weight:700;color:var(--c-plot)">10화</td><td style="color:var(--c-plot);font-weight:700">카타르시스 🎯</td><td>외적 갈등 최고조</td><td>1막 클라이맥스</td><td><span class="badge b-plot">인물 등장형</span></td></tr>
+        </table>
+      </div>
+      <hr class="div">
+      <div style="display:flex;justify-content:space-between">
+        <button class="btn btn-secondary" onclick="show('s07')">← 시놉시스로</button>
+        <button class="btn btn-primary" onclick="show('s09')">다음: 트리트먼트 만들기 →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-09 트리트먼트 카드 ──────────────── -->
+<section id="s09" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-09</div>
+    <div class="scr-title" style="color:var(--c-treatment)">🟠 트리트먼트 카드 (1화)</div>
+    <div class="scr-desc">1화 = 1카드. 기본 정보 · 장면 흐름 · 복선 · 작가 메모 4섹션.</div>
+  </div>
+  <div class="wf wf-md">
+    <div class="titlebar" style="border-bottom-color:var(--c-treatment)">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">재벌 비서 회귀</span><span class="bc-sep">/</span><span class="bc">트리트먼트</span><span class="bc-sep">/</span><span class="bc" style="color:var(--c-treatment);font-weight:700">1화</span>
+      <div class="tb-right"><div style="display:flex;gap:8px"><button class="btn btn-ghost btn-sm">AI 재생성</button><button class="btn btn-secondary btn-sm">수동 수정</button><button class="btn btn-primary btn-sm">저장</button></div></div>
+    </div>
+    <div style="padding:22px 28px">
+      <!-- 기본 정보 -->
+      <div class="panel" style="margin-bottom:14px;border-color:var(--c-treatment)">
+        <div class="panel-t" style="color:var(--c-treatment)">🗂 기본 정보</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label class="label">시간대</label>
+            <div style="display:flex;gap:12px;margin-top:4px">
+              <label style="font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer"><div class="radio"></div>낮</label>
+              <label style="font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer"><div class="radio on"></div>밤</label>
+              <label style="font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer"><div class="radio"></div>새벽</label>
+              <label style="font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer"><div class="radio"></div>황혼</label>
+            </div>
+          </div>
+          <div><label class="label">분위기</label><div style="margin-top:4px"><span class="tag b-treatment">혼란</span><span class="tag b-treatment">낯섦</span><span class="tag b-treatment">결의</span></div></div>
+          <div><label class="label">장소</label><input class="input" value="비가 내리는 회사 주차장 옥상"></div>
+          <div><label class="label">이 화의 목적</label><input class="input" value="회귀 충격과 결의를 동시에 느끼게"></div>
+        </div>
+      </div>
+      <!-- 장면 흐름 -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:#4b5563;margin-bottom:8px">🎬 장면 흐름</div>
+        <table class="tbl">
+          <tr><th style="width:50px;text-align:center">순서</th><th>장면 요약</th><th style="width:120px">등장인물</th><th style="width:160px">감정 변화</th></tr>
+          <tr><td style="text-align:center"><div class="scene-n" style="margin:0 auto">1</div></td><td>주차장에서 죽음 직전 회귀</td><td>서은하 (단독)</td><td>패닉 → 체념</td></tr>
+          <tr><td style="text-align:center"><div class="scene-n" style="margin:0 auto">2</div></td><td>10년 전 사무실에서 눈을 뜸</td><td>은하, 동료들</td><td>혼란 → 확인</td></tr>
+          <tr><td style="text-align:center"><div class="scene-n" style="margin:0 auto">3</div></td><td>화장실에서 혼자 복수 결심</td><td>은하 (단독)</td><td>체념 → 결의</td></tr>
+        </table>
+      </div>
+      <!-- 복선 -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:#4b5563;margin-bottom:8px">🔴 복선 메모</div>
+        <table class="tbl">
+          <tr><th>복선 내용</th><th style="width:150px">처리 방식</th><th style="width:130px">회수 예정</th></tr>
+          <tr><td>은하의 손목 시계</td><td>잠깐 비추기</td><td><span class="badge" style="background:#fee2e2;color:#991b1b">38화</span> 진범 단서</td></tr>
+          <tr><td class="empty" colspan="3" style="cursor:pointer;text-align:center"><span style="color:#818cf8">＋ 복선 추가</span></td></tr>
+        </table>
+      </div>
+      <!-- 작가 메모 -->
+      <div class="panel" style="background:#fffbeb;border-color:#fcd34d;margin-bottom:14px">
+        <div class="panel-t" style="color:#92400e">✏️ 작가 메모 (자유 형식)</div>
+        <div style="font-size:12px;color:#374151;display:flex;flex-direction:column;gap:7px">
+          <div><strong>💡 핵심 이미지:</strong> 비 맞으며 죽어가던 것과 똑같은 비가 내리는 10년 전 옥상 — 비를 반드시 쓸 것.</div>
+          <div><strong>💬 핵심 대사 초안:</strong> "이번엔 내가 먼저야."</div>
+          <div><strong>🔗 다음 화 연결:</strong> 2화에서 죽은 줄 알았던 선배 직원 첫 등장</div>
+        </div>
+      </div>
+      <hr class="div">
+      <div style="display:flex;justify-content:space-between">
+        <div style="display:flex;gap:8px"><button class="btn btn-secondary" onclick="show('s08')">← 플롯으로</button><button class="btn btn-secondary">← 이전 화</button></div>
+        <div style="display:flex;gap:8px"><button class="btn btn-secondary">다음 화 →</button><button class="btn btn-primary">2화 카드 생성</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-10 스토리 바이블 ──────────────── -->
+<section id="s10" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-10</div>
+    <div class="scr-title" style="color:var(--c-bible)">🔷 스토리 바이블</div>
+    <div class="scr-desc">인물 설정집(좌 목록 + 우 상세) / 세계관 탭 전환.</div>
+  </div>
+  <div class="wf">
+    <div class="titlebar" style="border-bottom-color:var(--c-bible)">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">재벌 비서 회귀</span><span class="bc-sep">/</span><span class="bc" style="color:var(--c-bible);font-weight:700">스토리 바이블</span>
+    </div>
+    <div style="display:flex;min-height:440px">
+      <div style="width:200px;background:#f4f5f9;border-right:1px solid var(--c-border);padding:14px 0;flex-shrink:0">
+        <div class="tab-row" style="padding:0 10px;margin-bottom:10px;border:none">
+          <div class="tab active" style="font-size:11px;padding:5px 10px;color:var(--c-bible);border-bottom-color:var(--c-bible)">인물</div>
+          <div class="tab" style="font-size:11px;padding:5px 10px">세계관</div>
+        </div>
+        <div class="bd-item active" style="padding-left:14px">👤 서은하 (주인공)</div>
+        <div class="bd-item" style="padding-left:14px">👤 강준혁</div>
+        <div class="bd-item" style="padding-left:14px">👤 이재성 (진범)</div>
+        <div class="bd-item" style="padding-left:14px">👤 박수진</div>
+        <div class="bd-add">＋ 인물 추가</div>
+      </div>
+      <div style="flex:1;padding:20px 24px">
+        <div style="font-size:15px;font-weight:800;margin-bottom:14px">👤 서은하 (주인공)</div>
+        <table class="tbl">
+          <tr><th style="width:130px">항목</th><th>내용</th></tr>
+          <tr><td>본명·별칭</td><td>서은하 / —</td></tr>
+          <tr><td>첫 등장</td><td><span class="badge b-bible">1화</span></td></tr>
+          <tr><td>역할</td><td><span class="badge b-synopsis">주인공</span></td></tr>
+          <tr><td>핵심 욕망</td><td>진범을 밝히고 복수하는 것</td></tr>
+          <tr><td>핵심 결핍</td><td>신뢰했던 사람에 배신당한 트라우마</td></tr>
+          <tr><td>말투·어조</td><td class="empty">클릭하여 작성…</td></tr>
+          <tr><td>주요 관계</td><td>강준혁: 복수의 도구 → 감정 변화</td></tr>
+          <tr><td>성장 궤적</td><td>피해자 → 능동적 복수자</td></tr>
+        </table>
+        <hr class="div">
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn btn-secondary btn-sm">Notion 동기화</button>
+          <button class="btn btn-primary btn-sm">저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-11 복선 트래커 ──────────────── -->
+<section id="s11" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-11</div>
+    <div class="scr-title" style="color:var(--c-foreshadow)">🔴 복선 트래커</div>
+    <div class="scr-desc">전체 복선 목록 · 회수 여부 체크 · 트리트먼트 카드 양방향 이동.</div>
+  </div>
+  <div class="wf">
+    <div class="titlebar" style="border-bottom-color:var(--c-foreshadow)">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">재벌 비서 회귀</span><span class="bc-sep">/</span><span class="bc" style="color:var(--c-foreshadow);font-weight:700">복선 트래커</span>
+      <div class="tb-right"><div style="display:flex;gap:8px"><select class="select" style="width:auto;padding:4px 8px;font-size:11px"><option>전체</option><option>미회수</option><option>완료</option></select><button class="btn btn-primary btn-sm">＋ 복선 추가</button></div></div>
+    </div>
+    <div style="padding:22px 28px">
+      <table class="tbl" style="margin-bottom:16px">
+        <tr><th style="width:50px;text-align:center">회수</th><th>복선 내용</th><th style="width:80px;text-align:center">설정 화</th><th style="width:130px">처리 방식</th><th style="width:110px">회수 예정</th></tr>
+        <tr>
+          <td style="text-align:center"><div class="chk-box" style="margin:0 auto"></div></td>
+          <td style="color:#4f46e5;cursor:pointer">은하의 손목 시계</td>
+          <td style="text-align:center"><span class="badge b-synopsis">1화</span></td>
+          <td>잠깐 비추기</td>
+          <td><span class="badge b-treatment">38화 예정</span></td>
+        </tr>
+        <tr class="foreshadow-row done">
+          <td style="text-align:center"><div class="chk-box on" style="margin:0 auto">✓</div></td>
+          <td>우산의 색깔</td>
+          <td style="text-align:center"><span class="badge b-gray">5화</span></td>
+          <td>대사 언급</td>
+          <td><span class="badge b-green">12화 완료</span></td>
+        </tr>
+        <tr>
+          <td style="text-align:center"><div class="chk-box" style="margin:0 auto"></div></td>
+          <td style="color:#4f46e5;cursor:pointer">진범의 반지 문양</td>
+          <td style="text-align:center"><span class="badge b-synopsis">7화</span></td>
+          <td>배경 소품</td>
+          <td><span class="badge b-treatment">45화 예정</span></td>
+        </tr>
+        <tr><td colspan="5" class="empty" style="text-align:center;cursor:pointer;padding:12px"><span style="color:#818cf8">＋ 새 복선 추가</span></td></tr>
+      </table>
+      <div style="display:flex;gap:12px;margin-bottom:16px">
+        <div class="panel" style="flex:1;text-align:center;padding:12px"><div style="font-size:22px;font-weight:800">3</div><div style="font-size:11px;color:#6b7280">전체</div></div>
+        <div class="panel" style="flex:1;text-align:center;padding:12px;border-color:#6ee7b7"><div style="font-size:22px;font-weight:800;color:var(--c-plot)">1</div><div style="font-size:11px;color:#6b7280">회수 완료</div></div>
+        <div class="panel" style="flex:1;text-align:center;padding:12px;border-color:#fca5a5"><div style="font-size:22px;font-weight:800;color:var(--c-foreshadow)">2</div><div style="font-size:11px;color:#6b7280">미회수</div></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-secondary btn-sm">Notion DB 동기화</button><button class="btn btn-primary btn-sm">저장</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-12 성공 패턴 체크 ──────────────── -->
+<section id="s12" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-12</div>
+    <div class="scr-title">✨ AI 성공 패턴 체크리스트</div>
+    <div class="scr-desc">100만 독자 달성 패턴 비교. 참고용 — 따를 의무 없음. 미충족 항목에 AI 제안 인라인 표시.</div>
+  </div>
+  <div class="wf wf-md">
+    <div class="titlebar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">재벌 비서 회귀</span><span class="bc-sep">/</span><span class="bc">성공 패턴 체크</span>
+    </div>
+    <div style="padding:22px 28px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div><div style="font-size:16px;font-weight:800">✨ 성공 패턴 체크</div><div style="font-size:11px;color:#6b7280;margin-top:3px">100만 독자 달성 웹소설 공통 패턴과 비교합니다.</div></div>
+        <span class="badge b-logline" style="font-size:12px;padding:5px 12px">5 / 8 충족</span>
+      </div>
+      <div style="margin-bottom:6px;font-size:12px;font-weight:700;color:#4b5563">공통 체크 (장르 무관)</div>
+      <div class="cl-item pass"><div class="chk-box on">✓</div><div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:12px;font-weight:700">1화 후킹</span><span class="badge b-green">충족</span></div><div style="font-size:11px;color:#6b7280">3페이지 이내에 붙잡는 사건·반전 있음</div></div></div>
+      <div class="cl-item pass"><div class="chk-box on">✓</div><div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:12px;font-weight:700">주인공 차별점</span><span class="badge b-green">충족</span></div><div style="font-size:11px;color:#6b7280">"이 주인공만 할 수 있는 것" 1문장 정의됨</div></div></div>
+      <div class="cl-item fail"><div class="chk-box"></div><div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:12px;font-weight:700">회차 완결감</span><span class="badge b-red">미충족</span></div><div style="font-size:11px;color:#6b7280">매 화 독립적 카타르시스가 미설계</div><div class="ai-tip" style="margin-top:8px;font-size:11px">AI 제안: 트리트먼트 카드에 "이 화의 소만족" 항목 추가 권장 &nbsp;<span style="color:#4f46e5;cursor:pointer;font-weight:700">→ 트리트먼트로 이동</span></div></div></div>
+      <div class="cl-item pass"><div class="chk-box on">✓</div><div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:12px;font-weight:700">10화 법칙</span><span class="badge b-green">충족</span></div><div style="font-size:11px;color:#6b7280">10화 이내 세계관·주인공·핵심 갈등 제시됨</div></div></div>
+      <div class="cl-item fail"><div class="chk-box"></div><div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:12px;font-weight:700">빌런 납득성</span><span class="badge b-red">미충족</span></div><div style="font-size:11px;color:#6b7280">빌런 논리 미설계 — 스토리 바이블 추가 권장</div></div></div>
+      <div class="cl-item pass"><div class="chk-box on">✓</div><div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:12px;font-weight:700">감정 호흡</span><span class="badge b-green">충족</span></div><div style="font-size:11px;color:#6b7280">긴장-이완 사이클 설계됨</div></div></div>
+
+      <div style="margin:14px 0 8px;font-size:12px;font-weight:700;color:#4b5563">장르별 추가 체크 — <span class="badge b-logline">회귀물</span></div>
+      <div class="cl-item pass"><div class="chk-box on">✓</div><div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:12px;font-weight:700">회귀 동기 납득성</span><span class="badge b-green">충족</span></div></div></div>
+      <div class="cl-item fail"><div class="chk-box"></div><div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:12px;font-weight:700">전생 지식 활용 속도</span><span class="badge b-red">미충족</span></div><div style="font-size:11px;color:#6b7280">플롯 표에서 속도 조절 필요</div></div></div>
+
+      <div style="margin-top:16px"><div style="display:flex;justify-content:space-between;font-size:12px;color:#4b5563;margin-bottom:6px"><span>전체 완성도</span><span style="font-weight:700">62.5%</span></div><div class="prog-bar"><div class="prog-fill" style="width:62.5%"></div></div></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-secondary">닫기</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── S-13 저장·내보내기 ──────────────── -->
+<section id="s13" class="screen">
+  <div class="scr-header">
+    <div class="scr-id">S-13</div>
+    <div class="scr-title">💾 저장 및 내보내기</div>
+    <div class="scr-desc">Notion 저장 (뷰별 자동 매핑) / Google Docs 내보내기. 무료 플랜 기준 전체 지원.</div>
+  </div>
+  <div class="wf wf-md">
+    <div class="titlebar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="app-name">NovelForge</span><span class="bc-sep">/</span><span class="bc">재벌 비서 회귀</span><span class="bc-sep">/</span><span class="bc">저장·내보내기</span>
+    </div>
+    <div style="padding:22px 28px">
+      <!-- Notion -->
+      <div class="panel" style="margin-bottom:16px;border-color:#c7d2fe">
+        <div class="panel-t">🗒 Notion 저장</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:14px;font-size:12px;color:var(--c-plot)"><span>●</span> 연결됨 — dlgyqls0608@gmail.com</div>
+        <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><div style="display:flex;align-items:center;gap:8px"><div class="chk-box on">✓</div><span class="b-logline" style="font-weight:700;color:var(--c-logline)">로그라인</span></div><span style="font-size:11px;color:#6b7280">→ Notion 페이지</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><div style="display:flex;align-items:center;gap:8px"><div class="chk-box on">✓</div><span style="font-weight:700;color:var(--c-synopsis)">시놉시스</span></div><span style="font-size:11px;color:#6b7280">→ 테이블뷰</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><div style="display:flex;align-items:center;gap:8px"><div class="chk-box on">✓</div><span style="font-weight:700;color:var(--c-plot)">플롯</span></div><span style="font-size:11px;color:#6b7280">→ 보드뷰 (아크별 카드)</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><div style="display:flex;align-items:center;gap:8px"><div class="chk-box on">✓</div><span style="font-weight:700;color:var(--c-treatment)">트리트먼트</span></div><span style="font-size:11px;color:#6b7280">→ 1화 = 1페이지</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><div style="display:flex;align-items:center;gap:8px"><div class="chk-box on">✓</div><span style="font-weight:700;color:var(--c-bible)">스토리 바이블</span></div><span style="font-size:11px;color:#6b7280">→ 관계형 DB</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px"><div style="display:flex;align-items:center;gap:8px"><div class="chk-box on">✓</div><span style="font-weight:700;color:var(--c-foreshadow)">복선 트래커</span></div><span style="font-size:11px;color:#6b7280">→ DB (체크박스 포함)</span></div>
+        </div>
+        <button class="btn btn-primary btn-full">Notion에 저장</button>
+      </div>
+      <!-- Google Docs -->
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-t">📄 Google Docs 내보내기</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:14px;font-size:12px;color:var(--c-plot)"><span>●</span> 연결됨</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+          <div class="chk-item selected" style="padding:8px 12px"><div class="radio on"></div><div class="chk-title">시놉시스 (편집자 제출용)</div></div>
+          <div class="chk-item" style="padding:8px 12px"><div class="radio"></div><div class="chk-title">플롯 표 (테이블 포함 문서)</div></div>
+          <div class="chk-item" style="padding:8px 12px"><div class="radio"></div><div class="chk-title">전체 기획 패키지 (모든 문서 합본)</div></div>
+        </div>
+        <div style="margin-bottom:12px"><label class="label">공유 설정</label><div style="display:flex;gap:16px;margin-top:5px"><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><div class="radio"></div>비공개</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><div class="radio on"></div>링크 공유</label><label style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer"><div class="radio"></div>특정 사용자</label></div></div>
+        <button class="btn btn-ghost btn-full">Google Docs로 내보내기</button>
+      </div>
+      <div style="text-align:right;font-size:11px;color:#c4c9d4">마지막 저장: 2026-06-10 14:32</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('#sidebar .sb-item').forEach(a=>a.classList.remove('active'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('active');
+  // 사이드바 활성화
+  document.querySelectorAll('#sidebar .sb-item').forEach(a=>{
+    if(a.getAttribute('onclick')===`show('${id}')`){
+      a.classList.add('active');
+    }
+  });
+  window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>

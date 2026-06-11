@@ -66,7 +66,7 @@ export default function ProjectPage({ params }: PageProps) {
     <div className="h-full flex flex-col">
       <AppHeader project={project} onNewIdea={() => setShowIdeaModal(true)} />
       <div className="flex-1 overflow-hidden">
-        <ThreePanel project={project} documents={documents} />
+        <ThreePanel project={project} />
       </div>
     </div>
   )

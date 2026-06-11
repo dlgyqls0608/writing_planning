@@ -4,21 +4,20 @@ import { useProjectStore } from '@/stores/project'
 import { Binder } from './Binder'
 import { Editor } from './Editor'
 import { NotesPanel } from './NotesPanel'
-import type { Project, Document } from '@/types'
+import type { Project } from '@/types'
 
 interface ThreePanelProps {
   project: Project
-  documents: Document[]
 }
 
-export function ThreePanel({ project, documents }: ThreePanelProps) {
+export function ThreePanel({ project }: ThreePanelProps) {
   const { isBinderOpen, isNotesOpen } = useProjectStore()
 
   return (
     <div className="flex h-full overflow-hidden">
       {isBinderOpen && (
         <aside className="w-[260px] shrink-0 border-r border-gray-200 bg-white overflow-y-auto">
-          <Binder project={project} documents={documents} />
+          <Binder project={project} />
         </aside>
       )}
 

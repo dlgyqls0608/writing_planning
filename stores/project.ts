@@ -17,6 +17,7 @@ interface ProjectStore {
   setDocuments: (docs: Document[]) => void
   selectDocument: (id: string, type: DocumentType) => void
   updateDocument: (id: string, partial: Partial<Document>) => void
+  addDocument: (doc: Document) => void
   toggleBinder: () => void
   toggleNotes: () => void
 }
@@ -41,6 +42,8 @@ export const useProjectStore = create<ProjectStore>((set) => ({
         d.id === id ? { ...d, ...partial } : d
       ),
     })),
+  addDocument: (doc) =>
+    set((state) => ({ documents: [...state.documents, doc] })),
   toggleBinder: () => set((state) => ({ isBinderOpen: !state.isBinderOpen })),
   toggleNotes: () => set((state) => ({ isNotesOpen: !state.isNotesOpen })),
 }))

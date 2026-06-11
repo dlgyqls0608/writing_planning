@@ -56,6 +56,8 @@ export type GenerateRequest = {
   type: DocumentType
   projectId: string
   userInput: string
+  mode?: 'document' | 'questions'
+  qa?: { question: string; answer: string }[]
   context?: {
     logline?: string
     genre?: string
