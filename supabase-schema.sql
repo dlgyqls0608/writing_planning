@@ -17,7 +17,10 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE TABLE IF NOT EXISTS documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('logline','synopsis','plot','treatment','story-bible')),
+  type TEXT NOT NULL CHECK (type IN (
+    'logline','synopsis','plot','plot-chapter','treatment',
+    'story-bible','bible-world','bible-power','bible-glossary','character-card'
+  )),
   title TEXT NOT NULL,
   user_input TEXT DEFAULT '',
   content TEXT DEFAULT '',
