@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { RotateCcw, Save, ExternalLink, Download, Pencil, Eye } from 'lucide-react'
+import { RotateCcw, Save, ExternalLink, Download, Pencil, Eye, History } from 'lucide-react'
 import { useProjectStore } from '@/stores/project'
 import { StreamingText } from '@/components/streaming/StreamingText'
 import { DocRenderer } from '@/components/streaming/DocRenderer'
 import { NotionExportDialog } from '@/components/export/NotionExportDialog'
+import { VersionHistoryPanel } from '@/components/documents/VersionHistoryPanel'
 import { LoglineInput } from '@/components/documents/LoglineInput'
 import { SynopsisInput } from '@/components/documents/SynopsisInput'
 import { PlotInput } from '@/components/documents/PlotInput'
@@ -74,6 +75,7 @@ export function Editor({ project }: EditorProps) {
   const [editedContent, setEditedContent] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [notionDialogOpen, setNotionDialogOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -87,6 +89,7 @@ export function Editor({ project }: EditorProps) {
     setIsEditing(false)
     setEditMode(false)
     setError(null)
+    setHistoryOpen(false)
   }, [selectedDocumentId])
 
   async function generate(userInput: string) {
@@ -336,40 +339,69 @@ export function Editor({ project }: EditorProps) {
             <ExternalLink className="size-3" />
             Notion
           </button>
+
+          <button
+            onClick={() => setHistoryOpen((v) => !v)}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              historyOpen
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <History className="size-3" />
+            히스토리
+          </button>
         </div>
       </div>
 
-      {/* 콘텐츠 */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-3xl mx-auto">
-          {editMode ? (
-            <textarea
-              className="w-full min-h-[600px] text-sm text-gray-800 leading-relaxed bg-transparent outline-none resize-none font-mono"
-              value={editedContent}
-              onChange={(e) => { setEditedContent(e.target.value); setIsDirty(true) }}
-              placeholder="내용을 직접 수정하세요."
-              autoFocus
-            />
-          ) : (
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => setEditMode(true)}
-              onKeyDown={(e) => e.key === 'Enter' && setEditMode(true)}
-              className="group relative cursor-text"
-              title="클릭하여 편집"
-            >
-              <div className="absolute inset-0 -m-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity border-2 border-dashed border-gray-300 pointer-events-none" />
-              <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-white border border-gray-200 rounded px-1.5 py-0.5 shadow-sm">
-                  <Pencil className="size-2.5" />
-                  클릭하여 편집
-                </span>
+      {/* 콘텐츠 + 히스토리 패널 */}
+      <div className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-3xl mx-auto">
+            {editMode ? (
+              <textarea
+                className="w-full min-h-[600px] text-sm text-gray-800 leading-relaxed bg-transparent outline-none resize-none font-mono"
+                value={editedContent}
+                onChange={(e) => { setEditedContent(e.target.value); setIsDirty(true) }}
+                placeholder="내용을 직접 수정하세요."
+                autoFocus
+              />
+            ) : (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setEditMode(true)}
+                onKeyDown={(e) => e.key === 'Enter' && setEditMode(true)}
+                className="group relative cursor-text"
+                title="클릭하여 편집"
+              >
+                <div className="absolute inset-0 -m-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity border-2 border-dashed border-gray-300 pointer-events-none" />
+                <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-white border border-gray-200 rounded px-1.5 py-0.5 shadow-sm">
+                    <Pencil className="size-2.5" />
+                    클릭하여 편집
+                  </span>
+                </div>
+                <DocRenderer content={displayContent} />
               </div>
-              <DocRenderer content={displayContent} />
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        {historyOpen && (
+          <div className="w-72 shrink-0">
+            <VersionHistoryPanel
+              documentId={selectedDoc.id}
+              onRestore={(content, userInput) => {
+                setEditedContent(content)
+                updateDocument(selectedDoc.id, { content, user_input: userInput, status: 'generated' })
+                setIsDirty(false)
+                setHistoryOpen(false)
+              }}
+              onClose={() => setHistoryOpen(false)}
+            />
+          </div>
+        )}
       </div>
 
       <NotionExportDialog

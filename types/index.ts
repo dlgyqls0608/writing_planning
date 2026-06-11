@@ -57,6 +57,15 @@ export interface Foreshadow {
   created_at: string
 }
 
+export interface DocumentVersion {
+  id: string
+  document_id: string
+  version_number: number
+  content: string
+  user_input: string
+  saved_at: string
+}
+
 export type GenerateRequest = {
   type: DocumentType
   projectId: string
