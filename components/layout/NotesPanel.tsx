@@ -38,11 +38,13 @@ async function createForeshadow(data: {
   return res.json()
 }
 
-async function toggleForeshadow(id: string, is_resolved: boolean) {
+async function toggleForeshadow(id: string, is_resolved: boolean, resolved_episode?: number) {
+  const body: Record<string, unknown> = { is_resolved }
+  if (resolved_episode !== undefined) body.resolved_episode = resolved_episode
   const res = await fetch(`/api/foreshadows/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ is_resolved }),
+    body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error('복선 업데이트 실패')
   return res.json()
@@ -85,8 +87,9 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   const [foreshadowInput, setForeshadowInput] = useState('')
   const [plantedEp, setPlantedEp] = useState('')
   const [resolvedEp, setResolvedEp] = useState('')
-  const [showForeshadowDetail, setShowForeshadowDetail] = useState(false)
   const [foreshadowTab, setForeshadowTab] = useState<'list' | 'timeline'>('list')
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
+  const [resolvingEp, setResolvingEp] = useState('')
 
   const [checklistOpen, setChecklistOpen] = useState(false)
   const [charactersOpen, setCharactersOpen] = useState(false)
@@ -122,14 +125,17 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
       setForeshadowInput('')
       setPlantedEp('')
       setResolvedEp('')
-      setShowForeshadowDetail(false)
     },
   })
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, is_resolved }: { id: string; is_resolved: boolean }) =>
-      toggleForeshadow(id, is_resolved),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['foreshadows', projectId] }),
+    mutationFn: ({ id, is_resolved, resolved_episode }: { id: string; is_resolved: boolean; resolved_episode?: number }) =>
+      toggleForeshadow(id, is_resolved, resolved_episode),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['foreshadows', projectId] })
+      setResolvingId(null)
+      setResolvingEp('')
+    },
   })
 
   const deleteMutation = useMutation({
@@ -251,98 +257,133 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
         {foreshadowTab === 'timeline' ? (
           <ForeshadowTimeline foreshadows={foreshadows} />
         ) : (
-        <div className="space-y-1.5 max-h-48 overflow-y-auto">
+        <div className="space-y-1.5 max-h-52 overflow-y-auto pr-0.5">
           {foreshadows.map((f) => (
             <div
               key={f.id}
-              className="flex items-start gap-1.5 bg-[#fee2e2] rounded px-2 py-1.5 group"
+              className="rounded-lg border border-red-100 bg-[#fff8f8] px-2 py-2 group"
             >
-              <input
-                type="checkbox"
-                checked={f.is_resolved}
-                onChange={() =>
-                  toggleMutation.mutate({ id: f.id, is_resolved: !f.is_resolved })
-                }
-                className="mt-0.5 shrink-0 accent-[#dc2626]"
-              />
-              <div className="flex-1 min-w-0">
-                <span
-                  className={`text-xs text-[#7f1d1d] leading-snug block ${
-                    f.is_resolved ? 'line-through opacity-60' : ''
-                  }`}
-                >
-                  {f.content}
-                </span>
-                {(f.planted_episode || f.resolved_episode) && (
-                  <span className="text-[10px] text-[#dc2626]/70 mt-0.5 block">
-                    {f.planted_episode ? `${f.planted_episode}화 심기` : ''}
-                    {f.planted_episode && f.resolved_episode ? ' → ' : ''}
-                    {f.resolved_episode ? `${f.resolved_episode}화 회수` : ''}
+              <div className="flex items-start gap-1.5">
+                <div className={`mt-1 size-2 rounded-full shrink-0 ${f.is_resolved ? 'bg-green-500' : 'bg-orange-400'}`} />
+                <div className="flex-1 min-w-0">
+                  <span className={`text-xs leading-snug block ${f.is_resolved ? 'line-through text-gray-400' : 'text-[#7f1d1d]'}`}>
+                    {f.content}
                   </span>
-                )}
+                  <span className="text-[10px] text-gray-400 mt-0.5 block">
+                    {f.planted_episode ? `${f.planted_episode}화 등장` : '화수 미입력'}
+                    {f.resolved_episode
+                      ? ` → ${f.resolved_episode}화 회수`
+                      : f.is_resolved
+                      ? ' → 회수됨'
+                      : ''}
+                  </span>
+                  {resolvingId === f.id && (
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <span className="text-[10px] text-gray-500 shrink-0">회수 화수 (선택):</span>
+                      <input
+                        type="number"
+                        className="w-14 text-xs border border-green-300 rounded px-1.5 py-0.5 outline-none focus:border-green-500"
+                        placeholder="예: 15"
+                        value={resolvingEp}
+                        onChange={(e) => setResolvingEp(e.target.value)}
+                        min={f.planted_episode ?? 1}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter')
+                            toggleMutation.mutate({ id: f.id, is_resolved: true, resolved_episode: resolvingEp ? Number(resolvingEp) : undefined })
+                        }}
+                      />
+                      <button
+                        onClick={() => toggleMutation.mutate({ id: f.id, is_resolved: true, resolved_episode: resolvingEp ? Number(resolvingEp) : undefined })}
+                        className="text-[10px] px-1.5 py-0.5 bg-green-500 text-white rounded hover:bg-green-600"
+                      >확인</button>
+                      <button
+                        onClick={() => { setResolvingId(null); setResolvingEp('') }}
+                        className="text-[10px] text-gray-400 hover:text-gray-600"
+                      >취소</button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {!f.is_resolved ? (
+                    resolvingId !== f.id && (
+                      <button
+                        onClick={() => { setResolvingId(f.id); setResolvingEp('') }}
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-green-200 text-green-600 hover:bg-green-50 transition-colors"
+                      >
+                        회수
+                      </button>
+                    )
+                  ) : (
+                    <button
+                      onClick={() => toggleMutation.mutate({ id: f.id, is_resolved: false })}
+                      className="text-[10px] px-1 py-0.5 text-green-600 hover:text-gray-500 transition-colors"
+                      title="미회수로 되돌리기"
+                    >✓완료</button>
+                  )}
+                  <button
+                    onClick={() => deleteMutation.mutate(f.id)}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-200 text-[#dc2626] transition-opacity"
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => deleteMutation.mutate(f.id)}
-                className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 rounded hover:bg-red-200 text-[#dc2626] transition-opacity"
-              >
-                <Trash2 className="size-3" />
-              </button>
             </div>
           ))}
           {foreshadows.length === 0 && (
-            <p className="text-[10px] text-gray-400 italic">등록된 복선이 없습니다.</p>
+            <div className="py-3 text-center">
+              <p className="text-[11px] text-gray-400">등록된 복선이 없습니다.</p>
+              <p className="text-[10px] text-gray-300 mt-0.5">아래 폼에서 추가해보세요.</p>
+            </div>
           )}
         </div>
         )}
 
         {/* 복선 입력 */}
-        <div className="space-y-1.5">
-          <div className="flex gap-1">
-            <input
-              className="flex-1 text-xs border border-red-100 rounded px-2 py-1 outline-none focus:border-red-300"
-              placeholder="복선 내용..."
-              value={foreshadowInput}
-              onChange={(e) => setForeshadowInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !showForeshadowDetail) addForeshadow()
-              }}
-              disabled={addMutation.isPending}
-            />
-            <button
-              onClick={() => setShowForeshadowDetail((v) => !v)}
-              className="px-1.5 rounded text-[10px] border border-red-100 text-[#dc2626] hover:bg-red-50 transition-colors"
-              title="회차 번호 설정"
-            >
-              {showForeshadowDetail ? '▲' : '화수'}
-            </button>
-            <button
-              onClick={addForeshadow}
-              disabled={addMutation.isPending}
-              className="p-1 rounded hover:bg-red-50 text-[#dc2626] disabled:opacity-50"
-            >
-              <Plus className="size-4" />
-            </button>
-          </div>
-          {showForeshadowDetail && (
-            <div className="flex gap-1.5">
+        <div className="rounded-lg border border-red-100 p-2 space-y-1.5 bg-red-50/20">
+          <input
+            className="w-full text-xs border border-red-100 rounded px-2 py-1 outline-none focus:border-red-300 bg-white"
+            placeholder="복선 내용... (예: 주인공이 숨긴 편지)"
+            value={foreshadowInput}
+            onChange={(e) => setForeshadowInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addForeshadow()}
+            disabled={addMutation.isPending}
+          />
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 flex-1">
+              <span className="text-[10px] text-gray-400 shrink-0 whitespace-nowrap">🌱 심는 화수</span>
               <input
                 type="number"
-                className="w-1/2 text-xs border border-red-100 rounded px-2 py-1 outline-none focus:border-red-300"
-                placeholder="심기 화수"
+                className="w-full text-xs border border-red-100 rounded px-1.5 py-0.5 outline-none focus:border-red-300 bg-white"
+                placeholder="예: 3"
                 value={plantedEp}
                 onChange={(e) => setPlantedEp(e.target.value)}
                 min={1}
               />
+            </div>
+            <span className="text-[10px] text-gray-300">→</span>
+            <div className="flex items-center gap-1 flex-1">
+              <span className="text-[10px] text-gray-400 shrink-0 whitespace-nowrap">📌 회수 화수</span>
               <input
                 type="number"
-                className="w-1/2 text-xs border border-red-100 rounded px-2 py-1 outline-none focus:border-red-300"
-                placeholder="회수 화수"
+                className="w-full text-xs border border-red-100 rounded px-1.5 py-0.5 outline-none focus:border-red-300 bg-white"
+                placeholder="예: 15"
                 value={resolvedEp}
                 onChange={(e) => setResolvedEp(e.target.value)}
                 min={1}
               />
             </div>
-          )}
+            <button
+              onClick={addForeshadow}
+              disabled={addMutation.isPending || !foreshadowInput.trim()}
+              className="shrink-0 flex items-center gap-0.5 px-2 py-1 rounded bg-[#dc2626] text-white text-[10px] hover:bg-red-700 disabled:opacity-40 transition-colors"
+            >
+              <Plus className="size-3" />
+              추가
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400">화수는 선택사항이에요 — 나중에 목록에서 추가할 수 있어요</p>
         </div>
       </section>
 
