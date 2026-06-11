@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import {
   ChevronDown, ChevronRight, FileText, BarChart2, BookOpen, Bookmark,
-  AlignLeft, Plus, Loader2, Globe, Zap, BookMarked, User, Layers,
+  AlignLeft, Plus, Loader2, Globe, Zap, BookMarked, User, Layers, Network,
 } from 'lucide-react'
 import { useProjectStore } from '@/stores/project'
 import { Badge } from '@/components/ui/badge'
@@ -197,7 +197,7 @@ function InlineAddForm({
 // ── 메인 Binder 컴포넌트 ──────────────────────────────────────────────────
 
 export function Binder({ project }: BinderProps) {
-  const { selectedDocumentId, selectDocument, addDocument, documents } = useProjectStore()
+  const { selectedDocumentId, selectedView, selectDocument, setSelectedView, addDocument, documents } = useProjectStore()
 
   // 섹션 열림/닫힘 상태
   const [plotOpen, setPlotOpen] = useState(true)
@@ -452,6 +452,20 @@ export function Binder({ project }: BinderProps) {
             })}
           </div>
         )}
+
+        {/* ── 인물 관계도 ── */}
+        <button
+          onClick={() => setSelectedView('character-map')}
+          className={cn(
+            'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left transition-colors',
+            selectedView === 'character-map'
+              ? 'bg-[#fce7f3] text-[#db2777] font-medium'
+              : 'text-gray-700 hover:bg-gray-100'
+          )}
+        >
+          <Network className="size-4 shrink-0" style={{ color: '#db2777' }} />
+          <span className="flex-1">인물 관계도</span>
+        </button>
 
         {/* ── 캐릭터 카드 섹션 ── */}
         <SectionHeader icon={User} color="#db2777" label="캐릭터 카드" isOpen={charOpen} onToggle={() => setCharOpen((v) => !v)} />

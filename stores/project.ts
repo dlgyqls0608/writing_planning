@@ -3,12 +3,15 @@
 import { create } from 'zustand'
 import type { Project, Document, DocumentType } from '@/types'
 
+type SpecialView = 'character-map'
+
 interface ProjectStore {
   currentProject: Project | null
   projects: Project[]
   documents: Document[]
   selectedDocumentId: string | null
   selectedDocumentType: DocumentType | null
+  selectedView: SpecialView | null
   isBinderOpen: boolean
   isNotesOpen: boolean
 
@@ -16,6 +19,7 @@ interface ProjectStore {
   setProjects: (projects: Project[]) => void
   setDocuments: (docs: Document[]) => void
   selectDocument: (id: string, type: DocumentType) => void
+  setSelectedView: (view: SpecialView | null) => void
   updateDocument: (id: string, partial: Partial<Document>) => void
   addDocument: (doc: Document) => void
   toggleBinder: () => void
@@ -28,6 +32,7 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   documents: [],
   selectedDocumentId: null,
   selectedDocumentType: null,
+  selectedView: null,
   isBinderOpen: true,
   isNotesOpen: true,
 
@@ -35,7 +40,9 @@ export const useProjectStore = create<ProjectStore>((set) => ({
   setProjects: (projects) => set({ projects }),
   setDocuments: (docs) => set({ documents: docs }),
   selectDocument: (id, type) =>
-    set({ selectedDocumentId: id, selectedDocumentType: type }),
+    set({ selectedDocumentId: id, selectedDocumentType: type, selectedView: null }),
+  setSelectedView: (view) =>
+    set({ selectedView: view, selectedDocumentId: null, selectedDocumentType: null }),
   updateDocument: (id, partial) =>
     set((state) => ({
       documents: state.documents.map((d) =>

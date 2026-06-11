@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Bookmark, Trash2, ChevronDown, ChevronUp, CheckSquare, Users } from 'lucide-react'
+import { Plus, Bookmark, Trash2, ChevronDown, ChevronUp, CheckSquare, Users, BarChart2, List } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { SuccessChecklist } from '@/components/checklist/SuccessChecklist'
+import { ForeshadowTimeline } from '@/components/visualizations/ForeshadowTimeline'
 import type { Character, Foreshadow } from '@/types'
 
 interface NotesPanelProps {
@@ -85,6 +86,7 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   const [plantedEp, setPlantedEp] = useState('')
   const [resolvedEp, setResolvedEp] = useState('')
   const [showForeshadowDetail, setShowForeshadowDetail] = useState(false)
+  const [foreshadowTab, setForeshadowTab] = useState<'list' | 'timeline'>('list')
 
   const [checklistOpen, setChecklistOpen] = useState(false)
   const [charactersOpen, setCharactersOpen] = useState(false)
@@ -215,10 +217,40 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
 
       {/* 복선 트래커 */}
       <section className="p-3 flex flex-col gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 text-[#dc2626]">
-          <Bookmark className="size-3" />
-          복선 트래커
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 text-[#dc2626]">
+            <Bookmark className="size-3" />
+            복선 트래커
+          </h3>
+          <div className="flex items-center rounded overflow-hidden border border-red-100">
+            <button
+              onClick={() => setForeshadowTab('list')}
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] transition-colors ${
+                foreshadowTab === 'list'
+                  ? 'bg-red-50 text-[#dc2626] font-medium'
+                  : 'text-gray-400 hover:bg-gray-50'
+              }`}
+            >
+              <List className="size-2.5" />
+              목록
+            </button>
+            <button
+              onClick={() => setForeshadowTab('timeline')}
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] transition-colors border-l border-red-100 ${
+                foreshadowTab === 'timeline'
+                  ? 'bg-red-50 text-[#dc2626] font-medium'
+                  : 'text-gray-400 hover:bg-gray-50'
+              }`}
+            >
+              <BarChart2 className="size-2.5" />
+              타임라인
+            </button>
+          </div>
+        </div>
+
+        {foreshadowTab === 'timeline' ? (
+          <ForeshadowTimeline foreshadows={foreshadows} />
+        ) : (
         <div className="space-y-1.5 max-h-48 overflow-y-auto">
           {foreshadows.map((f) => (
             <div
@@ -261,6 +293,7 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
             <p className="text-[10px] text-gray-400 italic">등록된 복선이 없습니다.</p>
           )}
         </div>
+        )}
 
         {/* 복선 입력 */}
         <div className="space-y-1.5">

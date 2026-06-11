@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { RotateCcw, Save, ExternalLink, Download, Pencil, Eye, History } from 'lucide-react'
+import { RotateCcw, Save, ExternalLink, Download, Pencil, Eye, History, TrendingUp, Network } from 'lucide-react'
 import { useProjectStore } from '@/stores/project'
 import { StreamingText } from '@/components/streaming/StreamingText'
 import { DocRenderer } from '@/components/streaming/DocRenderer'
@@ -17,7 +17,9 @@ import { BibleWorldInput } from '@/components/documents/BibleWorldInput'
 import { BiblePowerInput } from '@/components/documents/BiblePowerInput'
 import { BibleGlossaryInput } from '@/components/documents/BibleGlossaryInput'
 import { CharacterCardInput } from '@/components/documents/CharacterCardInput'
-import type { Project, GenerateRequest } from '@/types'
+import { EmotionCurve } from '@/components/visualizations/EmotionCurve'
+import { CharacterMindMap } from '@/components/visualizations/CharacterMindMap'
+import type { Project, GenerateRequest, Character } from '@/types'
 
 interface EditorProps {
   project: Project
@@ -63,8 +65,14 @@ function InputForm({
   }
 }
 
+async function fetchCharacters(projectId: string): Promise<Character[]> {
+  const res = await fetch(`/api/characters?projectId=${projectId}`)
+  if (!res.ok) return []
+  return res.json()
+}
+
 export function Editor({ project }: EditorProps) {
-  const { selectedDocumentId, selectedDocumentType, documents, updateDocument } = useProjectStore()
+  const { selectedDocumentId, selectedDocumentType, selectedView, documents, updateDocument } = useProjectStore()
 
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamedText, setStreamedText] = useState('')
@@ -76,6 +84,9 @@ export function Editor({ project }: EditorProps) {
   const [isDirty, setIsDirty] = useState(false)
   const [notionDialogOpen, setNotionDialogOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [showEmotionCurve, setShowEmotionCurve] = useState(false)
+  const [characters, setCharacters] = useState<Character[]>([])
+  const [charsLoading, setCharsLoading] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -90,7 +101,17 @@ export function Editor({ project }: EditorProps) {
     setEditMode(false)
     setError(null)
     setHistoryOpen(false)
+    setShowEmotionCurve(false)
   }, [selectedDocumentId])
+
+  // 관계도 뷰 진입 시 인물 데이터 로드
+  useEffect(() => {
+    if (selectedView !== 'character-map') return
+    setCharsLoading(true)
+    fetchCharacters(project.id)
+      .then(setCharacters)
+      .finally(() => setCharsLoading(false))
+  }, [selectedView, project.id])
 
   async function generate(userInput: string) {
     if (!selectedDoc || !selectedDocumentType || !userInput.trim()) return
@@ -189,6 +210,24 @@ export function Editor({ project }: EditorProps) {
     a.download = `${project.title}_${meta?.title ?? ''}.txt`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // ── 특수 뷰: 인물 관계도 ─────────────────────────────────────────────────
+  if (selectedView === 'character-map') {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="shrink-0 bg-white border-b border-gray-100 px-6 py-2.5 flex items-center gap-2">
+          <Network className="size-4 text-[#db2777]" />
+          <span className="text-sm font-semibold text-gray-800">인물 관계도</span>
+          {charsLoading && (
+            <span className="text-xs text-gray-400 ml-2">불러오는 중...</span>
+          )}
+        </div>
+        <div className="flex-1 overflow-hidden">
+          {!charsLoading && <CharacterMindMap characters={characters} />}
+        </div>
+      </div>
+    )
   }
 
   // ── 상태: 문서 없음 ───────────────────────────────────────────────────────
@@ -340,6 +379,20 @@ export function Editor({ project }: EditorProps) {
             Notion
           </button>
 
+          {(selectedDocumentType === 'plot-chapter' || selectedDocumentType === 'plot') && displayContent && (
+            <button
+              onClick={() => setShowEmotionCurve((v) => !v)}
+              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                showEmotionCurve
+                  ? 'bg-green-50 border-green-300 text-green-700'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <TrendingUp className="size-3" />
+              감정 곡선
+            </button>
+          )}
+
           <button
             onClick={() => setHistoryOpen((v) => !v)}
             className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
@@ -357,35 +410,39 @@ export function Editor({ project }: EditorProps) {
       {/* 콘텐츠 + 히스토리 패널 */}
       <div className="flex-1 overflow-hidden flex">
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-3xl mx-auto">
-            {editMode ? (
-              <textarea
-                className="w-full min-h-[600px] text-sm text-gray-800 leading-relaxed bg-transparent outline-none resize-none font-mono"
-                value={editedContent}
-                onChange={(e) => { setEditedContent(e.target.value); setIsDirty(true) }}
-                placeholder="내용을 직접 수정하세요."
-                autoFocus
-              />
-            ) : (
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setEditMode(true)}
-                onKeyDown={(e) => e.key === 'Enter' && setEditMode(true)}
-                className="group relative cursor-text"
-                title="클릭하여 편집"
-              >
-                <div className="absolute inset-0 -m-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity border-2 border-dashed border-gray-300 pointer-events-none" />
-                <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-white border border-gray-200 rounded px-1.5 py-0.5 shadow-sm">
-                    <Pencil className="size-2.5" />
-                    클릭하여 편집
-                  </span>
+          {showEmotionCurve ? (
+            <EmotionCurve content={displayContent} />
+          ) : (
+            <div className="max-w-3xl mx-auto">
+              {editMode ? (
+                <textarea
+                  className="w-full min-h-[600px] text-sm text-gray-800 leading-relaxed bg-transparent outline-none resize-none font-mono"
+                  value={editedContent}
+                  onChange={(e) => { setEditedContent(e.target.value); setIsDirty(true) }}
+                  placeholder="내용을 직접 수정하세요."
+                  autoFocus
+                />
+              ) : (
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setEditMode(true)}
+                  onKeyDown={(e) => e.key === 'Enter' && setEditMode(true)}
+                  className="group relative cursor-text"
+                  title="클릭하여 편집"
+                >
+                  <div className="absolute inset-0 -m-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity border-2 border-dashed border-gray-300 pointer-events-none" />
+                  <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-white border border-gray-200 rounded px-1.5 py-0.5 shadow-sm">
+                      <Pencil className="size-2.5" />
+                      클릭하여 편집
+                    </span>
+                  </div>
+                  <DocRenderer content={displayContent} />
                 </div>
-                <DocRenderer content={displayContent} />
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         {historyOpen && (
