@@ -5,10 +5,18 @@ import {
   ChevronDown, ChevronRight, FileText, BarChart2, BookOpen, Bookmark,
   AlignLeft, Plus, Loader2, Globe, Zap, BookMarked, User, Layers, Network,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useProjectStore } from '@/stores/project'
 import { Badge } from '@/components/ui/badge'
+import { ForeshadowTimeline } from '@/components/visualizations/ForeshadowTimeline'
 import { cn } from '@/lib/utils'
-import type { Project, Document, DocumentType } from '@/types'
+import type { Project, Document, DocumentType, Foreshadow } from '@/types'
+
+async function fetchForeshadows(projectId: string): Promise<Foreshadow[]> {
+  const res = await fetch(`/api/foreshadows?projectId=${projectId}`)
+  if (!res.ok) return []
+  return res.json()
+}
 
 interface BinderProps {
   project: Project
@@ -204,6 +212,12 @@ export function Binder({ project }: BinderProps) {
   const [treatmentOpen, setTreatmentOpen] = useState(true)
   const [bibleOpen, setBibleOpen] = useState(true)
   const [charOpen, setCharOpen] = useState(true)
+  const [foreshadowOpen, setForeshadowOpen] = useState(true)
+
+  const { data: foreshadows = [] } = useQuery({
+    queryKey: ['foreshadows', project.id],
+    queryFn: () => fetchForeshadows(project.id),
+  })
 
   // 추가 폼 상태
   const [addingPlotChapter, setAddingPlotChapter] = useState(false)
@@ -450,6 +464,20 @@ export function Binder({ project }: BinderProps) {
                 />
               )
             })}
+          </div>
+        )}
+
+        {/* ── 복선 트래커 ── */}
+        <SectionHeader
+          icon={Bookmark}
+          color="#dc2626"
+          label="복선 트래커"
+          isOpen={foreshadowOpen}
+          onToggle={() => setForeshadowOpen((v) => !v)}
+        />
+        {foreshadowOpen && (
+          <div className="mt-0.5 px-2 py-2 mx-1 rounded-lg bg-red-50/40 border border-red-100">
+            <ForeshadowTimeline foreshadows={foreshadows} />
           </div>
         )}
 
