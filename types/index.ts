@@ -2,8 +2,13 @@ export type DocumentType =
   | 'logline'
   | 'synopsis'
   | 'plot'
+  | 'plot-chapter'
   | 'treatment'
   | 'story-bible'
+  | 'bible-world'
+  | 'bible-power'
+  | 'bible-glossary'
+  | 'character-card'
 
 export type DocumentStatus = 'empty' | 'draft' | 'generated' | 'finalized'
 

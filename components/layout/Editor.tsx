@@ -9,8 +9,13 @@ import { NotionExportDialog } from '@/components/export/NotionExportDialog'
 import { LoglineInput } from '@/components/documents/LoglineInput'
 import { SynopsisInput } from '@/components/documents/SynopsisInput'
 import { PlotInput } from '@/components/documents/PlotInput'
+import { PlotChapterInput } from '@/components/documents/PlotChapterInput'
 import { TreatmentInput } from '@/components/documents/TreatmentInput'
 import { StoryBibleInput } from '@/components/documents/StoryBibleInput'
+import { BibleWorldInput } from '@/components/documents/BibleWorldInput'
+import { BiblePowerInput } from '@/components/documents/BiblePowerInput'
+import { BibleGlossaryInput } from '@/components/documents/BibleGlossaryInput'
+import { CharacterCardInput } from '@/components/documents/CharacterCardInput'
 import type { Project, GenerateRequest } from '@/types'
 
 interface EditorProps {
@@ -18,11 +23,16 @@ interface EditorProps {
 }
 
 const DOC_META: Record<string, { title: string; desc: string; color: string }> = {
-  logline:      { title: '로그라인',    desc: '한 줄로 압축한 이야기의 핵심',        color: '#4f46e5' },
-  synopsis:     { title: '시놉시스',    desc: '전체 이야기 뼈대 (결말 포함)',         color: '#0891b2' },
-  plot:         { title: '플롯',        desc: '아크 단위 감정 흐름·갈등·장면 설계',   color: '#16a34a' },
-  treatment:    { title: '트리트먼트',  desc: '회차별 장면 카드',                    color: '#d97706' },
-  'story-bible':{ title: '스토리 바이블', desc: '인물·세계관·용어 설정집',            color: '#dc2626' },
+  logline:          { title: '로그라인',      desc: '한 줄로 압축한 이야기의 핵심',           color: '#4f46e5' },
+  synopsis:         { title: '시놉시스',      desc: '전체 이야기 뼈대 (결말 포함)',            color: '#0891b2' },
+  plot:             { title: '플롯 — 전체 아크',  desc: '아크 단위 감정 흐름·갈등·장면 설계',  color: '#16a34a' },
+  'plot-chapter':   { title: '플롯 챕터',     desc: '챕터별 회차 단위 상세 플롯',             color: '#16a34a' },
+  treatment:        { title: '트리트먼트',    desc: '회차별 장면 카드',                       color: '#d97706' },
+  'story-bible':    { title: '스토리 바이블', desc: '인물·세계관·용어 설정 개요',             color: '#0891b2' },
+  'bible-world':    { title: '세계관·배경',   desc: '시대·공간·사회 구조·규칙 설정집',        color: '#0891b2' },
+  'bible-power':    { title: '파워 시스템',   desc: '능력 체계·등급·제약 설정집',             color: '#7c3aed' },
+  'bible-glossary': { title: '용어 사전',     desc: '작품 고유 용어·명사 정의집',             color: '#dc2626' },
+  'character-card': { title: '캐릭터 카드',   desc: '인물 심리·관계·성장 설정카드',           color: '#db2777' },
 }
 
 // ── 타입별 입력 폼 ────────────────────────────────────────────────────────────
@@ -38,12 +48,17 @@ function InputForm({
 }) {
   const props = { initialInput, onGenerate, onCancel }
   switch (type) {
-    case 'logline':      return <LoglineInput {...props} />
-    case 'synopsis':     return <SynopsisInput {...props} />
-    case 'plot':         return <PlotInput {...props} targetEpisodes={project.target_episodes} />
-    case 'treatment':    return <TreatmentInput {...props} docTitle={doc.title} />
-    case 'story-bible':  return <StoryBibleInput {...props} />
-    default:             return null
+    case 'logline':          return <LoglineInput {...props} />
+    case 'synopsis':         return <SynopsisInput {...props} />
+    case 'plot':             return <PlotInput {...props} targetEpisodes={project.target_episodes} />
+    case 'plot-chapter':     return <PlotChapterInput {...props} docTitle={doc.title} targetEpisodes={project.target_episodes} />
+    case 'treatment':        return <TreatmentInput {...props} docTitle={doc.title} />
+    case 'story-bible':      return <StoryBibleInput {...props} />
+    case 'bible-world':      return <BibleWorldInput {...props} />
+    case 'bible-power':      return <BiblePowerInput {...props} />
+    case 'bible-glossary':   return <BibleGlossaryInput {...props} />
+    case 'character-card':   return <CharacterCardInput {...props} docTitle={doc.title} />
+    default:                 return null
   }
 }
 
