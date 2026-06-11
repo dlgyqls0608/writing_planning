@@ -53,7 +53,8 @@ export async function POST(req: NextRequest) {
     const notionPageId = await appendContentToPage(
       body.notionPageId.trim(),
       pageTitle,
-      doc.content
+      doc.content,
+      doc.type
     )
 
     return NextResponse.json({ notionPageId })

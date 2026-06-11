@@ -21,16 +21,13 @@ export default function ProjectPage({ params }: PageProps) {
   const { id } = use(params)
   const { setCurrentProject, setDocuments } = useProjectStore()
   const [project, setProject] = useState<Project | null>(null)
-  const [documents, setDocs] = useState<Document[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [showIdeaModal, setShowIdeaModal] = useState(false)
 
   useEffect(() => {
     fetchProject(id)
       .then(({ project, documents }) => {
         setProject(project)
-        setDocs(documents)
         setCurrentProject(project)
         setDocuments(documents)
       })
@@ -64,7 +61,7 @@ export default function ProjectPage({ params }: PageProps) {
 
   return (
     <div className="h-full flex flex-col">
-      <AppHeader project={project} onNewIdea={() => setShowIdeaModal(true)} />
+      <AppHeader project={project} />
       <div className="flex-1 overflow-hidden">
         <ThreePanel project={project} />
       </div>

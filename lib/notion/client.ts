@@ -11,6 +11,35 @@ export function getNotionClient(): Client {
 
 const BLOCK_LIMIT = 100
 
+// ── Notion color tokens ────────────────────────────────────────────────────
+type NotionColor =
+  | 'default' | 'gray' | 'brown' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink' | 'red'
+  | 'gray_background' | 'brown_background' | 'orange_background' | 'yellow_background'
+  | 'green_background' | 'blue_background' | 'purple_background' | 'pink_background' | 'red_background'
+
+// ── Doc-type metadata: emoji icon + accent color + label ──────────────────
+const DOC_TYPE_META: Record<string, { emoji: string; color: NotionColor; label: string }> = {
+  logline:          { emoji: '✏️',  color: 'purple_background', label: '로그라인' },
+  synopsis:         { emoji: '📄',  color: 'blue_background',   label: '시놉시스' },
+  plot:             { emoji: '📊',  color: 'green_background',  label: '플롯 — 전체 아크' },
+  'plot-chapter':   { emoji: '📑',  color: 'green_background',  label: '플롯 챕터' },
+  treatment:        { emoji: '🎬',  color: 'orange_background', label: '트리트먼트' },
+  'story-bible':    { emoji: '📚',  color: 'blue_background',   label: '스토리 바이블' },
+  'bible-world':    { emoji: '🌍',  color: 'blue_background',   label: '세계관·배경' },
+  'bible-power':    { emoji: '⚡',  color: 'purple_background', label: '파워 시스템' },
+  'bible-glossary': { emoji: '📖',  color: 'red_background',    label: '용어 사전' },
+  'character-card': { emoji: '👤',  color: 'pink_background',   label: '캐릭터 카드' },
+}
+
+// H2 배경색 순환 (DocRenderer H2_COLORS와 동일한 계열)
+const H2_CYCLE: NotionColor[] = [
+  'purple_background',
+  'blue_background',
+  'orange_background',
+  'red_background',
+  'green_background',
+]
+
 // ── Inline rich-text parser (bold / italic / code) ─────────────────────────
 
 type RichText = {
@@ -21,7 +50,6 @@ type RichText = {
 
 function parseInline(raw: string): RichText[] {
   const tokens: RichText[] = []
-  // Matches **bold**, *italic*, `code`
   const regex = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`/g
   let last = 0
   let m: RegExpExecArray | null
@@ -38,7 +66,11 @@ function parseInline(raw: string): RichText[] {
 }
 
 function plain(content: string): RichText {
-  return { type: 'text', text: { content }, annotations: { bold: false, italic: false, code: false, strikethrough: false, underline: false, color: 'default' } }
+  return {
+    type: 'text',
+    text: { content },
+    annotations: { bold: false, italic: false, code: false, strikethrough: false, underline: false, color: 'default' },
+  }
 }
 
 function styled(content: string, flags: { bold?: boolean; italic?: boolean; code?: boolean }): RichText {
@@ -60,8 +92,12 @@ function styled(content: string, flags: { bold?: boolean; italic?: boolean; code
 
 type Block = Record<string, unknown>
 
-function mkH2(text: string): Block {
-  return { object: 'block', type: 'heading_2', heading_2: { rich_text: parseInline(text), color: 'default', is_toggleable: false } }
+function mkH1(text: string): Block {
+  return { object: 'block', type: 'heading_1', heading_1: { rich_text: parseInline(text), color: 'default', is_toggleable: false } }
+}
+
+function mkH2(text: string, color: NotionColor = 'default'): Block {
+  return { object: 'block', type: 'heading_2', heading_2: { rich_text: parseInline(text), color, is_toggleable: false } }
 }
 
 function mkH3(text: string): Block {
@@ -80,14 +116,18 @@ function mkDivider(): Block {
   return { object: 'block', type: 'divider', divider: {} }
 }
 
-function mkCallout(text: string): Block {
+function mkTableOfContents(): Block {
+  return { object: 'block', type: 'table_of_contents', table_of_contents: { color: 'default' } }
+}
+
+function mkCallout(text: string, emoji = '✦', color: NotionColor = 'yellow_background'): Block {
   return {
     object: 'block',
     type: 'callout',
     callout: {
       rich_text: parseInline(text),
-      icon: { type: 'emoji', emoji: '✦' },
-      color: 'yellow_background',
+      icon: { type: 'emoji', emoji },
+      color,
     },
   }
 }
@@ -98,6 +138,10 @@ function mkQuote(text: string): Block {
 
 function mkBullet(text: string): Block {
   return { object: 'block', type: 'bulleted_list_item', bulleted_list_item: { rich_text: parseInline(text) } }
+}
+
+function mkNumbered(text: string): Block {
+  return { object: 'block', type: 'numbered_list_item', numbered_list_item: { rich_text: parseInline(text) } }
 }
 
 function mkTodo(text: string, checked: boolean): Block {
@@ -116,9 +160,7 @@ function mkTable(rows: string[][]): Block {
       children: rows.map((cells) => ({
         object: 'block',
         type: 'table_row',
-        table_row: {
-          cells: cells.map((cell) => parseInline(cell)),
-        },
+        table_row: { cells: cells.map((cell) => parseInline(cell)) },
       })),
     },
   }
@@ -131,13 +173,23 @@ function parseMarkdownToBlocks(markdown: string): Block[] {
   const blocks: Block[] = []
   let i = 0
   let lastWasEmpty = false
+  let h2Count = 0
 
   while (i < lines.length) {
     const line = lines[i]
 
-    // Heading 2
+    // Heading 1 (# but not ##)
+    if (line.startsWith('# ') && !line.startsWith('## ')) {
+      blocks.push(mkH1(line.slice(2).trim()))
+      lastWasEmpty = false
+      i++
+      continue
+    }
+
+    // Heading 2 — cycling background color
     if (line.startsWith('## ')) {
-      blocks.push(mkH2(line.slice(3).trim()))
+      blocks.push(mkH2(line.slice(3).trim(), H2_CYCLE[h2Count % H2_CYCLE.length]))
+      h2Count++
       lastWasEmpty = false
       i++
       continue
@@ -159,12 +211,11 @@ function parseMarkdownToBlocks(markdown: string): Block[] {
       continue
     }
 
-    // Blockquote / callout
+    // Blockquote → callout if starts with emphasis markers, else quote
     if (line.startsWith('> ')) {
       const text = line.slice(2).trim()
-      // ✦ 강조 완성 로그라인은 callout으로
-      if (text.startsWith('✦') || blocks.some((b) => (b.heading_2 as { rich_text?: Array<{ text?: { content?: string } }> } | undefined)?.rich_text?.[0]?.text?.content?.includes('✦'))) {
-        blocks.push(mkCallout(text))
+      if (text.startsWith('✦') || text.startsWith('💡') || text.startsWith('⚠') || text.startsWith('!')) {
+        blocks.push(mkCallout(text, '💡', 'yellow_background'))
       } else {
         blocks.push(mkQuote(text))
       }
@@ -173,7 +224,7 @@ function parseMarkdownToBlocks(markdown: string): Block[] {
       continue
     }
 
-    // To-do checkbox
+    // To-do checkbox — must come before bullet list check
     const todoMatch = line.match(/^- \[([ xX])\] (.*)/)
     if (todoMatch) {
       blocks.push(mkTodo(todoMatch[2], todoMatch[1].toLowerCase() === 'x'))
@@ -182,7 +233,7 @@ function parseMarkdownToBlocks(markdown: string): Block[] {
       continue
     }
 
-    // Bulleted list (- item or * item)
+    // Bulleted list (- or *)
     if (line.match(/^[-*] /)) {
       blocks.push(mkBullet(line.slice(2)))
       lastWasEmpty = false
@@ -190,23 +241,27 @@ function parseMarkdownToBlocks(markdown: string): Block[] {
       continue
     }
 
-    // Table — detect by leading pipe and next non-empty line being alignment row
+    // Ordered list (1. 2. etc.)
+    if (line.match(/^\d+\. /)) {
+      blocks.push(mkNumbered(line.replace(/^\d+\. /, '')))
+      lastWasEmpty = false
+      i++
+      continue
+    }
+
+    // Table
     if (line.startsWith('|')) {
       const tableRows: string[][] = []
       let j = i
       while (j < lines.length && lines[j].startsWith('|')) {
         const isAlignRow = /^\|[\s\-:|]+\|/.test(lines[j])
         if (!isAlignRow) {
-          const cells = lines[j]
-            .split('|')
-            .slice(1, -1)
-            .map((c) => c.trim())
+          const cells = lines[j].split('|').slice(1, -1).map((c) => c.trim())
           if (cells.length > 0) tableRows.push(cells)
         }
         j++
       }
       if (tableRows.length > 0) {
-        // Normalize column count
         const maxCols = Math.max(...tableRows.map((r) => r.length))
         const normalized = tableRows.map((r) => {
           while (r.length < maxCols) r.push('')
@@ -219,11 +274,9 @@ function parseMarkdownToBlocks(markdown: string): Block[] {
       continue
     }
 
-    // Empty line — add one empty paragraph as visual spacing (skip consecutive)
+    // Empty line — single spacing block (skip consecutive)
     if (line.trim() === '') {
-      if (!lastWasEmpty && blocks.length > 0) {
-        blocks.push(mkEmptyParagraph())
-      }
+      if (!lastWasEmpty && blocks.length > 0) blocks.push(mkEmptyParagraph())
       lastWasEmpty = true
       i++
       continue
@@ -243,28 +296,39 @@ function parseMarkdownToBlocks(markdown: string): Block[] {
 export async function appendContentToPage(
   pageId: string,
   title: string,
-  content: string
+  content: string,
+  docType?: string
 ): Promise<string> {
   const notion = getNotionClient()
+  const typeMeta = docType ? (DOC_TYPE_META[docType] ?? null) : null
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const newPage = await notion.pages.create({
     parent: { type: 'page_id', page_id: pageId },
+    ...(typeMeta ? { icon: { type: 'emoji', emoji: typeMeta.emoji } } : {}),
     properties: {
-      title: {
-        title: [{ type: 'text', text: { content: title } }],
-      },
+      title: { title: [{ type: 'text', text: { content: title } }] },
     },
-  })
+  } as Parameters<typeof notion.pages.create>[0])
 
-  const allBlocks = parseMarkdownToBlocks(content)
+  // ── 상단 장식 블록: 문서 타입 callout + 목차 ───────────────────────────
+  const headerBlocks: Block[] = []
 
-  // Append in batches — tables count as 1 top-level block regardless of row count
+  if (typeMeta) {
+    headerBlocks.push(mkCallout(`NovelForge · ${typeMeta.label}`, typeMeta.emoji, typeMeta.color))
+    headerBlocks.push(mkEmptyParagraph())
+  }
+
+  headerBlocks.push(mkTableOfContents())
+  headerBlocks.push(mkDivider())
+
+  const allBlocks = [...headerBlocks, ...parseMarkdownToBlocks(content)]
+
   for (let i = 0; i < allBlocks.length; i += BLOCK_LIMIT) {
-    const batch = allBlocks.slice(i, i + BLOCK_LIMIT)
     await notion.blocks.children.append({
       block_id: newPage.id,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      children: batch as any,
+      children: allBlocks.slice(i, i + BLOCK_LIMIT) as any,
     })
   }
 

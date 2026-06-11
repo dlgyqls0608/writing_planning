@@ -129,10 +129,14 @@ function parseBlocks(content: string): Block[] {
       continue
     }
 
-    // Unordered list
+    // Unordered list (checkbox lines must be excluded to avoid absorbing them)
     if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
       const items: string[] = []
-      while (i < lines.length && (lines[i].trim().startsWith('- ') || lines[i].trim().startsWith('* '))) {
+      while (
+        i < lines.length &&
+        (lines[i].trim().startsWith('- ') || lines[i].trim().startsWith('* ')) &&
+        !/^- \[[ xX]\]/.test(lines[i].trim())
+      ) {
         items.push(lines[i].trim().replace(/^[-*]\s/, ''))
         i++
       }
