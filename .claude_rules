@@ -1,0 +1,90 @@
+# NovelForge — 웹소설 기획 도우미
+
+## Project
+AI가 작가의 입력을 5개 기획 문서로 정리하는 도구.
+**AI는 정리자, 창작자가 아님** — 작가 입력 없이 AI가 직접 스토리를 창작하지 않는다.
+각 문서는 독립 생성 (문서 간 prompt 의존성 없음).
+
+## Commands
+```bash
+npm run dev      # Next.js Turbopack 개발 서버
+npm run build    # 프로덕션 빌드
+npm run lint     # ESLint
+```
+
+## Tech Stack
+| Layer | Package | Version |
+|-------|---------|---------|
+| Framework | Next.js (App Router) | 16.2.6 |
+| Language | TypeScript | 6.0.3 |
+| UI | React | 19.2.7 |
+| Styling | Tailwind CSS | 4.3 |
+| Components | shadcn/ui | v4 |
+| State | Zustand | 5.0.14 |
+| Server State | TanStack Query | 5.101.0 |
+| AI | @anthropic-ai/sdk | 0.102.0 |
+| DB | Supabase + @supabase/ssr | — |
+| Export | @notionhq/client | 5.22.0 |
+
+## Architecture
+```
+app/
+  api/generate/     # SSE 스트리밍: Claude API 문서 생성
+  api/projects/     # Supabase CRUD
+  api/export/       # Notion / Google Docs 내보내기
+components/
+  ui/               # shadcn/ui 프리미티브
+  features/         # 도메인 컴포넌트 (DocumentCard, IdeaForm 등)
+lib/
+  claude.ts         # Claude 클라이언트 + 프롬프트 템플릿
+  supabase/         # 서버/브라우저 클라이언트 분리
+stores/             # Zustand (project, document, ui)
+types/              # Project, Document, Character 인터페이스
+```
+
+## Document Types
+| 문서 | 영문 | 규모 | 색상 토큰 |
+|------|------|------|----------|
+| 로그라인 | Logline | 1~2문장 | `--c-logline` (purple) |
+| 시놉시스 | Synopsis | 1~15p | `--c-synopsis` (blue) |
+| 플롯 | Plot | 10화 단위 아크 | `--c-plot` (green) |
+| 트리트먼트 | Treatment | 25~40p | `--c-treatment` (gold) |
+| 스토리 바이블 | Story Bible | 캐릭터/세계관 | `--c-bible` (cyan) |
+
+## Critical Rules
+
+### AI / Claude API
+- 모델: `claude-sonnet-4-6` 고정 (opus 금지 — 비용 5배 차이)
+- `ANTHROPIC_API_KEY` 서버 전용 — `NEXT_PUBLIC_` 접두어 절대 금지
+- 프롬프트 캐싱 적용 → 반복 비용 90% 절감
+- AI 생성 후 반드시 Accept / Reject / Refine 선택 제시 — 자동 적용 금지
+
+### Next.js 16 Breaking Changes
+- `params`, `cookies()`, `headers()` 는 반드시 `await` (비동기 전환됨)
+- 캐시: `use cache` 디렉티브 명시 필요 (기본값 비캐시로 변경됨)
+
+### Supabase
+- 모든 테이블에 RLS(Row Level Security) 명시적 활성화 필수
+- `middleware.ts` 에서 `updateSession()` 호출 → auth 세션 만료 방지
+- 신규 프로젝트 env 키: `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (구형 ANON_KEY 사용 금지)
+
+### 보안
+- `.env.local` → `.gitignore` 필수
+- Vercel serverless 타임아웃 60초 → 스트리밍 응답 주의
+
+## Design System (요약)
+- 레이아웃: 220px 고정 좌측 Nav + 3패널 에디터 (binder | editor | notes)
+- 접근성: WCAG 2.2 Level AA (일반 텍스트 대비 4.5:1 이상)
+- 상세: `Design-Guide.md` 참조
+
+## Deployment Limits
+| 서비스 | 제한 |
+|--------|------|
+| Vercel Hobby | 비상업용, 100GB/월, fn 60초 |
+| Supabase Free | 500MB DB, 1주 미사용 시 자동 중지 |
+| Anthropic | 무료 티어 없음 (pay-as-you-go) |
+
+## Source Docs
+- 기획: `Planning.md` · `wireframe.md` (13 screens)
+- 디자인: `Design-Guide.md`
+- 아키텍처: `Code-Architecture.md`
