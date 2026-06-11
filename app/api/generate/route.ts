@@ -4,6 +4,8 @@ import { getAIClient } from '@/lib/ai/client'
 import { getSystemPrompt, getQuestionPrompt, buildUserPrompt, getModelConfig } from '@/lib/ai/prompts'
 import type { GenerateRequest } from '@/types'
 
+export const maxDuration = 300 // Vercel Pro: up to 300s for AI streaming
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -54,6 +56,11 @@ export async function POST(req: NextRequest) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      // Keep-alive: send SSE comment every 10s to prevent proxy/CDN timeout
+      const heartbeat = setInterval(() => {
+        try { controller.enqueue(encoder.encode(': keepalive\n\n')) } catch {}
+      }, 10_000)
+
       try {
         const { model, maxTokens } = getModelConfig(body.type)
         const aiStream = getAIClient().messages.stream({
@@ -88,6 +95,7 @@ export async function POST(req: NextRequest) {
         const msg = err instanceof Error ? err.message : '생성 중 오류가 발생했습니다'
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`))
       } finally {
+        clearInterval(heartbeat)
         controller.close()
       }
     },
@@ -96,8 +104,9 @@ export async function POST(req: NextRequest) {
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', // Nginx/Vercel: disable response buffering
     },
   })
 }

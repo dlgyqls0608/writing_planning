@@ -38,10 +38,11 @@ export function StoryBibleInput({ initialInput = '', onGenerate, isLoading, onCa
           이미 로그라인·시놉시스가 있다면 추가 설정만 적어도 됩니다.
         </p>
         <textarea
-          className="w-full min-h-[180px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 resize-none leading-relaxed"
+          className="w-full min-h-[180px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 resize-none overflow-hidden leading-relaxed"
           placeholder="예) 주인공 이름은 이수아, 30대 초반 재벌가 비서. 빌런은 부회장 강태준으로 외적으로는 온화하지만 내면은 냉혹함. 세계관은 현대 한국 대기업..."
           value={idea}
           onChange={(e) => setIdea(e.target.value)}
+          onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 600) + 'px' }}
         />
       </div>
 

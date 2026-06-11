@@ -33,10 +33,11 @@ export function PlotInput({ initialInput = '', targetEpisodes = 100, onGenerate,
         </label>
         <p className="text-xs text-gray-400 mb-2">주요 아크, 반전 포인트, 결말 방향 등 알고 있는 만큼 적어주세요.</p>
         <textarea
-          className="w-full min-h-[160px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 resize-none leading-relaxed"
+          className="w-full min-h-[160px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 resize-none overflow-hidden leading-relaxed"
           placeholder="전체 이야기 흐름, 주요 아크, 결정적 장면 아이디어를 적어주세요."
           value={idea}
           onChange={(e) => setIdea(e.target.value)}
+          onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 600) + 'px' }}
         />
       </div>
 

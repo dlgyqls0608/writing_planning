@@ -36,10 +36,11 @@ export function LoglineInput({ initialInput = '', onGenerate, isLoading, onCance
           이야기 아이디어 <span className="text-red-500">*</span>
         </label>
         <textarea
-          className="w-full min-h-[140px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 resize-none leading-relaxed"
+          className="w-full min-h-[140px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20 resize-none overflow-hidden leading-relaxed"
           placeholder="주인공이 어떤 인물이고, 어떤 사건이 일어나는지 자유롭게 적어주세요.&#10;예) 억울하게 죽은 재벌 비서가 10년 전으로 회귀해 진범을 찾아 복수하는 이야기"
           value={idea}
           onChange={(e) => setIdea(e.target.value)}
+          onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 600) + 'px' }}
         />
       </div>
 

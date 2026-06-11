@@ -55,10 +55,11 @@ export function TreatmentInput({ initialInput = '', docTitle = '', onGenerate, i
         </label>
         <p className="text-xs text-gray-400 mb-2">직전 회차에서 어떤 일이 일어났나요? AI가 자연스럽게 이어지도록 작성해줍니다.</p>
         <textarea
-          className="w-full min-h-[90px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 resize-none leading-relaxed"
+          className="w-full min-h-[90px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 resize-none overflow-hidden leading-relaxed"
           placeholder="예: 주인공이 적의 정체를 알아채고 대치 상황에서 도망쳤다. 마지막 장면에서 예상치 못한 인물이 등장해 끊겼다."
           value={prevSummary}
           onChange={(e) => setPrevSummary(e.target.value)}
+          onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 500) + 'px' }}
         />
       </div>
 
@@ -70,10 +71,11 @@ export function TreatmentInput({ initialInput = '', docTitle = '', onGenerate, i
         </label>
         <p className="text-xs text-gray-400 mb-2">이번 화에서 일어나는 핵심 사건과 장면 흐름을 적어주세요.</p>
         <textarea
-          className="w-full min-h-[130px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 resize-none leading-relaxed"
+          className="w-full min-h-[130px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 resize-none overflow-hidden leading-relaxed"
           placeholder="예: 도망친 주인공이 숨어든 창고에서 오래된 단서를 발견한다. 추격자와 숨바꼭질하다가 결정적 순간에 새로운 동료가 나타나 위기를 모면한다."
           value={episodeFlow}
           onChange={(e) => setEpisodeFlow(e.target.value)}
+          onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 500) + 'px' }}
         />
       </div>
 
@@ -85,10 +87,11 @@ export function TreatmentInput({ initialInput = '', docTitle = '', onGenerate, i
         </label>
         <p className="text-xs text-gray-400 mb-2">다음 화에서 어떤 방향으로 가고 싶은지 작성하면 복선·클리프행어 설계에 반영됩니다.</p>
         <textarea
-          className="w-full min-h-[90px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 resize-none leading-relaxed"
+          className="w-full min-h-[90px] border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 resize-none overflow-hidden leading-relaxed"
           placeholder="예: 다음 화에서 새 동료의 진짜 목적이 드러나야 한다. 주인공이 단서의 의미를 깨닫는 복선을 이번 화에 심어두고 싶다."
           value={nextComment}
           onChange={(e) => setNextComment(e.target.value)}
+          onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 500) + 'px' }}
         />
       </div>
 
