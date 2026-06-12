@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { RotateCcw, Save, ExternalLink, Download, Pencil, Eye, History, TrendingUp, Network, Bookmark } from 'lucide-react'
+import { RotateCcw, Save, ExternalLink, Download, Pencil, Eye, History, TrendingUp, Network, Bookmark, Check, Undo2 } from 'lucide-react'
 import { useProjectStore } from '@/stores/project'
 import { StreamingText } from '@/components/streaming/StreamingText'
 import { DocRenderer } from '@/components/streaming/DocRenderer'
+import { DiffRenderer } from '@/components/streaming/DiffRenderer'
 import { NotionExportDialog } from '@/components/export/NotionExportDialog'
 import { VersionHistoryPanel } from '@/components/documents/VersionHistoryPanel'
 import { LoglineInput } from '@/components/documents/LoglineInput'
@@ -20,6 +21,7 @@ import { CharacterCardInput } from '@/components/documents/CharacterCardInput'
 import { EmotionCurve } from '@/components/visualizations/EmotionCurve'
 import { CharacterMindMap } from '@/components/visualizations/CharacterMindMap'
 import { ForeshadowTimeline } from '@/components/visualizations/ForeshadowTimeline'
+import { deleteBlock } from '@/lib/docParser'
 import { useQuery } from '@tanstack/react-query'
 import type { Project, GenerateRequest, Character, Foreshadow } from '@/types'
 
@@ -28,17 +30,20 @@ interface EditorProps {
 }
 
 const DOC_META: Record<string, { title: string; desc: string; color: string }> = {
-  logline:          { title: '로그라인',      desc: '한 줄로 압축한 이야기의 핵심',           color: '#4f46e5' },
-  synopsis:         { title: '시놉시스',      desc: '전체 이야기 뼈대 (결말 포함)',            color: '#0891b2' },
-  plot:             { title: '플롯 — 전체 아크',  desc: '아크 단위 감정 흐름·갈등·장면 설계',  color: '#16a34a' },
-  'plot-chapter':   { title: '플롯 챕터',     desc: '챕터별 회차 단위 상세 플롯',             color: '#16a34a' },
-  treatment:        { title: '트리트먼트',    desc: '회차별 장면 카드',                       color: '#d97706' },
-  'story-bible':    { title: '스토리 바이블', desc: '인물·세계관·용어 설정 개요',             color: '#0891b2' },
-  'bible-world':    { title: '세계관·배경',   desc: '시대·공간·사회 구조·규칙 설정집',        color: '#0891b2' },
-  'bible-power':    { title: '파워 시스템',   desc: '능력 체계·등급·제약 설정집',             color: '#7c3aed' },
-  'bible-glossary': { title: '용어 사전',     desc: '작품 고유 용어·명사 정의집',             color: '#dc2626' },
-  'character-card': { title: '캐릭터 카드',   desc: '인물 심리·관계·성장 설정카드',           color: '#db2777' },
+  logline:          { title: '로그라인',          desc: '한 줄로 압축한 이야기의 핵심',            color: '#4f46e5' },
+  synopsis:         { title: '시놉시스',          desc: '전체 이야기 뼈대 (결말 포함)',             color: '#0891b2' },
+  plot:             { title: '플롯 — 전체 아크',  desc: '아크 단위 감정 흐름·갈등·장면 설계',       color: '#16a34a' },
+  'plot-chapter':   { title: '플롯 챕터',         desc: '챕터별 회차 단위 상세 플롯',              color: '#16a34a' },
+  treatment:        { title: '트리트먼트',        desc: '회차별 장면 카드',                        color: '#d97706' },
+  'story-bible':    { title: '스토리 바이블',     desc: '인물·세계관·용어 설정 개요',              color: '#0891b2' },
+  'bible-world':    { title: '세계관·배경',       desc: '시대·공간·사회 구조·규칙 설정집',         color: '#0891b2' },
+  'bible-power':    { title: '파워 시스템',       desc: '능력 체계·등급·제약 설정집',              color: '#7c3aed' },
+  'bible-glossary': { title: '용어 사전',         desc: '작품 고유 용어·명사 정의집',              color: '#dc2626' },
+  'character-card': { title: '캐릭터 카드',       desc: '인물 심리·관계·성장 설정카드',            color: '#db2777' },
 }
+
+// 변경 비교를 지원하는 문서 타입 (스토리 바이블, 시놉시스, 플롯)
+const DIFF_SUPPORTED_TYPES = new Set(['story-bible', 'synopsis', 'plot'])
 
 // ── 타입별 입력 폼 ────────────────────────────────────────────────────────────
 function InputForm({
@@ -86,13 +91,15 @@ export function Editor({ project }: EditorProps) {
   const [streamedText, setStreamedText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)   // 재생성을 위한 재입력 모드
-  const [editMode, setEditMode] = useState(false)      // 생성된 결과 텍스트 직접 편집
+  const [isEditing, setIsEditing] = useState(false)
+  const [editMode, setEditMode] = useState(false)
   const [editedContent, setEditedContent] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [notionDialogOpen, setNotionDialogOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [showEmotionCurve, setShowEmotionCurve] = useState(false)
+  // 변경 비교: 재생성 전 원본 내용 보관
+  const [prevContent, setPrevContent] = useState<string | null>(null)
 
   const { data: characters = [], isLoading: charsLoading } = useQuery({
     queryKey: ['characters', project.id],
@@ -119,8 +126,10 @@ export function Editor({ project }: EditorProps) {
     setError(null)
     setHistoryOpen(false)
     setShowEmotionCurve(false)
+    setPrevContent(null)
   }, [selectedDocumentId])
 
+  const isDiffMode = prevContent !== null && !isStreaming && !!streamedText
 
   async function generate(userInput: string) {
     if (!selectedDoc || !selectedDocumentType || !userInput.trim()) return
@@ -129,6 +138,13 @@ export function Editor({ project }: EditorProps) {
     setIsStreaming(true)
     setIsEditing(false)
     setEditMode(false)
+
+    // 기존 내용이 있고 diff 지원 타입이면 원본 보관
+    if (selectedDoc.content && DIFF_SUPPORTED_TYPES.has(selectedDocumentType)) {
+      setPrevContent(selectedDoc.content)
+    } else {
+      setPrevContent(null)
+    }
 
     const controller = new AbortController()
     abortRef.current = controller
@@ -179,7 +195,10 @@ export function Editor({ project }: EditorProps) {
       await saveContent(selectedDoc.id, accumulated, userInput.trim())
       setEditedContent(accumulated)
     } catch (err) {
-      if ((err as Error).name === 'AbortError') return
+      if ((err as Error).name === 'AbortError') {
+        setPrevContent(null)
+        return
+      }
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다')
     } finally {
       setIsStreaming(false)
@@ -208,6 +227,29 @@ export function Editor({ project }: EditorProps) {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  // 변경 수락: diff 해제하고 새 내용 유지
+  function handleAcceptChanges() {
+    setPrevContent(null)
+    setStreamedText('')
+  }
+
+  // 이전으로 되돌리기: 원본 내용 복원
+  async function handleRevertChanges() {
+    if (!prevContent || !selectedDoc) return
+    await saveContent(selectedDoc.id, prevContent, selectedDoc.user_input ?? '')
+    setEditedContent(prevContent)
+    setPrevContent(null)
+    setStreamedText('')
+  }
+
+  // 블록 삭제 핸들러
+  function handleDeleteBlock(blockIndex: number) {
+    const current = isDirty ? editedContent : (selectedDoc?.content ?? '')
+    const next = deleteBlock(current, blockIndex)
+    setEditedContent(next)
+    setIsDirty(true)
   }
 
   function handleDownload() {
@@ -299,6 +341,26 @@ export function Editor({ project }: EditorProps) {
                       중단
                     </button>
                   </>
+                ) : isDiffMode ? (
+                  /* diff 모드: 수락 / 이전으로 버튼 */
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 mr-1">변경 내용 확인</span>
+                    <button
+                      onClick={handleRevertChanges}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <Undo2 className="size-3" />
+                      이전으로
+                    </button>
+                    <button
+                      onClick={handleAcceptChanges}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-white transition-colors"
+                      style={{ backgroundColor: meta?.color ?? '#4f46e5' }}
+                    >
+                      <Check className="size-3" />
+                      변경 수락
+                    </button>
+                  </div>
                 ) : (
                   <span className="text-xs text-gray-400">{isSaving ? '저장 중...' : '저장 완료'}</span>
                 )}
@@ -307,6 +369,20 @@ export function Editor({ project }: EditorProps) {
 
             {isStreaming ? (
               <StreamingText text={streamedText} isStreaming />
+            ) : isDiffMode ? (
+              /* 변경 비교 뷰 */
+              <div>
+                <div className="mb-4 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                  이전 버전과 새 버전을 비교합니다.
+                  <span className="mx-1.5 inline-flex items-center gap-0.5 font-medium">
+                    <span className="inline-block w-2 h-2 rounded-sm bg-green-400" /> 추가됨
+                  </span>
+                  <span className="inline-flex items-center gap-0.5 font-medium">
+                    <span className="inline-block w-2 h-2 rounded-sm bg-red-300" /> 삭제됨
+                  </span>
+                </div>
+                <DiffRenderer oldContent={prevContent!} newContent={streamedText} />
+              </div>
             ) : (
               <DocRenderer content={streamedText} />
             )}
@@ -322,7 +398,6 @@ export function Editor({ project }: EditorProps) {
     return (
       <div className="h-full overflow-y-auto">
         <div className="max-w-2xl mx-auto px-6 py-10">
-          {/* 헤더 */}
           <div className="mb-6 pb-4 border-b border-gray-100">
             <div className="flex items-center gap-2 mb-1">
               <div className="w-1 h-5 rounded-full" style={{ backgroundColor: accentColor }} />
@@ -367,7 +442,6 @@ export function Editor({ project }: EditorProps) {
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* 미리보기 / 편집 토글 */}
           <button
             onClick={() => { setEditMode((v) => !v); setError(null) }}
             className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
@@ -467,7 +541,11 @@ export function Editor({ project }: EditorProps) {
                       클릭하여 편집
                     </span>
                   </div>
-                  <DocRenderer content={displayContent} />
+                  {/* 블록 단위 삭제를 위해 onDelete 전달 */}
+                  <DocRenderer
+                    content={displayContent}
+                    onDelete={handleDeleteBlock}
+                  />
                 </div>
               )}
             </div>

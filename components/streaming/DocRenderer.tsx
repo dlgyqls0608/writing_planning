@@ -1,6 +1,8 @@
 'use client'
 
 import React from 'react'
+import { X } from 'lucide-react'
+import { parseBlocks, Block } from '@/lib/docParser'
 
 // ── inline parser: **bold**, *italic* ──────────────────────────────────────
 function Inline({ text }: { text: string }) {
@@ -18,17 +20,7 @@ function Inline({ text }: { text: string }) {
   )
 }
 
-// ── table parser ───────────────────────────────────────────────────────────
-function parseTableRows(lines: string[]): string[][] {
-  return lines
-    .filter(l => !/^\|[-:| ]+\|$/.test(l.trim()))
-    .map(l =>
-      l.split('|')
-        .slice(1, -1)
-        .map(c => c.trim())
-    )
-}
-
+// ── table renderer ─────────────────────────────────────────────────────────
 function DocTable({ rows }: { rows: string[][] }) {
   if (rows.length === 0) return null
   const [head, ...body] = rows
@@ -60,128 +52,7 @@ function DocTable({ rows }: { rows: string[][] }) {
   )
 }
 
-// ── block types ────────────────────────────────────────────────────────────
-type Block =
-  | { type: 'h2'; text: string }
-  | { type: 'h3'; text: string }
-  | { type: 'table'; rows: string[][] }
-  | { type: 'list'; items: string[]; ordered: boolean }
-  | { type: 'quote'; text: string }
-  | { type: 'hr' }
-  | { type: 'checkbox'; checked: boolean; text: string }
-  | { type: 'paragraph'; text: string }
-
-function parseBlocks(content: string): Block[] {
-  const lines = content.split('\n')
-  const blocks: Block[] = []
-  let i = 0
-
-  while (i < lines.length) {
-    const line = lines[i]
-    const trimmed = line.trim()
-
-    if (!trimmed) { i++; continue }
-
-    // H2
-    if (trimmed.startsWith('## ')) {
-      blocks.push({ type: 'h2', text: trimmed.slice(3) })
-      i++
-      continue
-    }
-
-    // H3
-    if (trimmed.startsWith('### ')) {
-      blocks.push({ type: 'h3', text: trimmed.slice(4) })
-      i++
-      continue
-    }
-
-    // HR
-    if (/^---+$/.test(trimmed)) {
-      blocks.push({ type: 'hr' })
-      i++
-      continue
-    }
-
-    // Quote
-    if (trimmed.startsWith('> ')) {
-      blocks.push({ type: 'quote', text: trimmed.slice(2) })
-      i++
-      continue
-    }
-
-    // Table
-    if (trimmed.startsWith('|')) {
-      const tableLines: string[] = []
-      while (i < lines.length && lines[i].trim().startsWith('|')) {
-        tableLines.push(lines[i])
-        i++
-      }
-      blocks.push({ type: 'table', rows: parseTableRows(tableLines) })
-      continue
-    }
-
-    // Checkbox
-    if (/^- \[[ xX]\]/.test(trimmed)) {
-      const checked = /^- \[[xX]\]/.test(trimmed)
-      blocks.push({ type: 'checkbox', checked, text: trimmed.replace(/^- \[[ xX]\]\s*/, '') })
-      i++
-      continue
-    }
-
-    // Unordered list (checkbox lines must be excluded to avoid absorbing them)
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      const items: string[] = []
-      while (
-        i < lines.length &&
-        (lines[i].trim().startsWith('- ') || lines[i].trim().startsWith('* ')) &&
-        !/^- \[[ xX]\]/.test(lines[i].trim())
-      ) {
-        items.push(lines[i].trim().replace(/^[-*]\s/, ''))
-        i++
-      }
-      blocks.push({ type: 'list', items, ordered: false })
-      continue
-    }
-
-    // Ordered list
-    if (/^\d+\.\s/.test(trimmed)) {
-      const items: string[] = []
-      while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) {
-        items.push(lines[i].trim().replace(/^\d+\.\s/, ''))
-        i++
-      }
-      blocks.push({ type: 'list', items, ordered: true })
-      continue
-    }
-
-    // Paragraph (collect consecutive non-special lines)
-    const textLines: string[] = []
-    while (
-      i < lines.length &&
-      lines[i].trim() &&
-      !lines[i].trim().startsWith('#') &&
-      !lines[i].trim().startsWith('|') &&
-      !/^- /.test(lines[i].trim()) &&
-      !/^\* /.test(lines[i].trim()) &&
-      !lines[i].trim().startsWith('>') &&
-      !/^---+$/.test(lines[i].trim()) &&
-      !/^\d+\.\s/.test(lines[i].trim())
-    ) {
-      textLines.push(lines[i])
-      i++
-    }
-    if (textLines.join('').trim()) {
-      blocks.push({ type: 'paragraph', text: textLines.join('\n') })
-    } else if (i < lines.length && lines[i].trim()) {
-      i++ // safety: advance past any line that matches no block pattern
-    }
-  }
-
-  return blocks
-}
-
-// ── H2 색상 (문서 타입별) ──────────────────────────────────────────────────
+// ── H2 색상 (섹션 순서별) ──────────────────────────────────────────────────
 const H2_COLORS = [
   'border-[#4f46e5] text-[#4f46e5]',
   'border-[#0891b2] text-[#0891b2]',
@@ -190,80 +61,110 @@ const H2_COLORS = [
   'border-[#16a34a] text-[#16a34a]',
 ]
 
+// ── 블록 콘텐츠 렌더 ────────────────────────────────────────────────────────
+function renderBlockContent(block: Block, h2ColorClass: string): React.ReactNode {
+  switch (block.type) {
+    case 'h2':
+      return (
+        <div className={`mt-6 mb-2 pb-1.5 border-b-2 ${h2ColorClass}`}>
+          <h2 className={`text-base font-bold ${h2ColorClass.split(' ')[1]}`}>
+            <Inline text={block.text} />
+          </h2>
+        </div>
+      )
+
+    case 'h3':
+      return (
+        <h3 className="mt-4 mb-1 text-sm font-semibold text-gray-800">
+          <Inline text={block.text} />
+        </h3>
+      )
+
+    case 'table':
+      return <DocTable rows={block.rows} />
+
+    case 'quote':
+      return (
+        <blockquote className="my-3 pl-4 border-l-4 border-[#4f46e5] bg-[#f5f3ff] rounded-r-lg py-2 pr-3">
+          <p className="text-sm font-medium text-[#4f46e5] leading-relaxed">
+            <Inline text={block.text} />
+          </p>
+        </blockquote>
+      )
+
+    case 'hr':
+      return <hr className="my-4 border-gray-200" />
+
+    case 'list':
+      return (
+        <ul className={`my-2 space-y-1 ${block.ordered ? 'list-decimal' : 'list-disc'} list-inside`}>
+          {block.items.map((item, ii) => (
+            <li key={ii} className="text-sm text-gray-700 leading-relaxed pl-1">
+              <Inline text={item} />
+            </li>
+          ))}
+        </ul>
+      )
+
+    case 'checkbox':
+      return (
+        <div className="flex items-start gap-2 my-1">
+          <input type="checkbox" defaultChecked={block.checked} className="mt-0.5 accent-[#4f46e5]" readOnly />
+          <span className={`text-sm text-gray-700 ${block.checked ? 'line-through text-gray-400' : ''}`}>
+            <Inline text={block.text} />
+          </span>
+        </div>
+      )
+
+    case 'paragraph':
+      return (
+        <p className="text-sm text-gray-700 leading-relaxed my-1 whitespace-pre-line">
+          <Inline text={block.text} />
+        </p>
+      )
+
+    default:
+      return null
+  }
+}
+
 // ── main renderer ──────────────────────────────────────────────────────────
-export function DocRenderer({ content }: { content: string }) {
+interface DocRendererProps {
+  content: string
+  onDelete?: (blockIndex: number) => void
+}
+
+export function DocRenderer({ content, onDelete }: DocRendererProps) {
   const blocks = parseBlocks(content)
   let h2Count = 0
 
   return (
     <div className="space-y-1">
       {blocks.map((block, idx) => {
-        switch (block.type) {
-          case 'h2': {
-            const color = H2_COLORS[h2Count % H2_COLORS.length]
-            h2Count++
-            return (
-              <div key={idx} className={`mt-6 mb-2 pb-1.5 border-b-2 ${color}`}>
-                <h2 className={`text-base font-bold ${color.split(' ')[1]}`}>
-                  <Inline text={block.text} />
-                </h2>
-              </div>
-            )
-          }
-
-          case 'h3':
-            return (
-              <h3 key={idx} className="mt-4 mb-1 text-sm font-semibold text-gray-800">
-                <Inline text={block.text} />
-              </h3>
-            )
-
-          case 'table':
-            return <DocTable key={idx} rows={block.rows} />
-
-          case 'quote':
-            return (
-              <blockquote key={idx} className="my-3 pl-4 border-l-4 border-[#4f46e5] bg-[#f5f3ff] rounded-r-lg py-2 pr-3">
-                <p className="text-sm font-medium text-[#4f46e5] leading-relaxed">
-                  <Inline text={block.text} />
-                </p>
-              </blockquote>
-            )
-
-          case 'hr':
-            return <hr key={idx} className="my-4 border-gray-200" />
-
-          case 'list':
-            return (
-              <ul key={idx} className={`my-2 space-y-1 ${block.ordered ? 'list-decimal' : 'list-disc'} list-inside`}>
-                {block.items.map((item, ii) => (
-                  <li key={ii} className="text-sm text-gray-700 leading-relaxed pl-1">
-                    <Inline text={item} />
-                  </li>
-                ))}
-              </ul>
-            )
-
-          case 'checkbox':
-            return (
-              <div key={idx} className="flex items-start gap-2 my-1">
-                <input type="checkbox" defaultChecked={block.checked} className="mt-0.5 accent-[#4f46e5]" readOnly />
-                <span className={`text-sm text-gray-700 ${block.checked ? 'line-through text-gray-400' : ''}`}>
-                  <Inline text={block.text} />
-                </span>
-              </div>
-            )
-
-          case 'paragraph':
-            return (
-              <p key={idx} className="text-sm text-gray-700 leading-relaxed my-1 whitespace-pre-line">
-                <Inline text={block.text} />
-              </p>
-            )
-
-          default:
-            return null
+        let colorClass = ''
+        if (block.type === 'h2') {
+          colorClass = H2_COLORS[h2Count % H2_COLORS.length]
+          h2Count++
         }
+
+        const rendered = renderBlockContent(block, colorClass)
+
+        if (!onDelete) {
+          return <React.Fragment key={idx}>{rendered}</React.Fragment>
+        }
+
+        return (
+          <div key={idx} className="relative group/block">
+            <button
+              onClick={() => onDelete(idx)}
+              className="absolute -right-1 top-0.5 z-10 opacity-0 group-hover/block:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded bg-white hover:bg-red-50 border border-gray-200 hover:border-red-300 text-gray-300 hover:text-red-400 shadow-sm"
+              title="이 블록 삭제"
+            >
+              <X className="size-3" />
+            </button>
+            {rendered}
+          </div>
+        )
       })}
     </div>
   )
