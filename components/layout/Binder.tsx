@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import {
   ChevronDown, ChevronRight, FileText, BarChart2, BookOpen, Bookmark,
-  AlignLeft, Plus, Loader2, Globe, Zap, BookMarked, User, Layers, Network,
+  AlignLeft, Plus, Loader2, Globe, Zap, BookMarked, User, Layers, Network, Trash2,
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useProjectStore } from '@/stores/project'
@@ -198,7 +198,7 @@ function InlineAddForm({
 // ── 메인 Binder 컴포넌트 ──────────────────────────────────────────────────
 
 export function Binder({ project }: BinderProps) {
-  const { selectedDocumentId, selectedView, selectDocument, setSelectedView, addDocument, documents } = useProjectStore()
+  const { selectedDocumentId, selectedView, selectDocument, setSelectedView, addDocument, removeDocument, documents } = useProjectStore()
 
   const qc = useQueryClient()
 
@@ -281,6 +281,13 @@ export function Binder({ project }: BinderProps) {
     } finally {
       setCreatingTreatment(false)
     }
+  }
+
+  // ── 캐릭터 카드 삭제 ──────────────────────────────────────────────────────
+  async function handleDeleteChar(id: string) {
+    if (!window.confirm('캐릭터 카드를 삭제할까요?')) return
+    removeDocument(id)
+    await fetch(`/api/documents/${id}`, { method: 'DELETE' })
   }
 
   // ── 캐릭터 카드 추가 ──────────────────────────────────────────────────────
@@ -497,13 +504,24 @@ export function Binder({ project }: BinderProps) {
         {charOpen && (
           <div className="ml-6 mt-0.5 space-y-0.5">
             {charDocs.map((d) => (
-              <SubItem
-                key={d.id} icon={User} label={d.title} color="#db2777"
-                selectedBg="bg-[#fce7f3]" selectedText="text-[#db2777]"
-                isSelected={selectedDocumentId === d.id}
-                isGenerated={d.status === 'generated'}
-                onClick={() => selectDocument(d.id, 'character-card')}
-              />
+              <div key={d.id} className="group relative flex items-center">
+                <div className="flex-1 min-w-0">
+                  <SubItem
+                    icon={User} label={d.title} color="#db2777"
+                    selectedBg="bg-[#fce7f3]" selectedText="text-[#db2777]"
+                    isSelected={selectedDocumentId === d.id}
+                    isGenerated={d.status === 'generated'}
+                    onClick={() => selectDocument(d.id, 'character-card')}
+                  />
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteChar(d.id) }}
+                  className="absolute right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity z-10"
+                  title="삭제"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              </div>
             ))}
             {addingChar ? (
               <InlineAddForm

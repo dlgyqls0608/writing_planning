@@ -22,6 +22,7 @@ interface ProjectStore {
   setSelectedView: (view: SpecialView | null) => void
   updateDocument: (id: string, partial: Partial<Document>) => void
   addDocument: (doc: Document) => void
+  removeDocument: (id: string) => void
   toggleBinder: () => void
   toggleNotes: () => void
 }
@@ -51,6 +52,12 @@ export const useProjectStore = create<ProjectStore>((set) => ({
     })),
   addDocument: (doc) =>
     set((state) => ({ documents: [...state.documents, doc] })),
+  removeDocument: (id) =>
+    set((state) => ({
+      documents: state.documents.filter((d) => d.id !== id),
+      selectedDocumentId: state.selectedDocumentId === id ? null : state.selectedDocumentId,
+      selectedDocumentType: state.selectedDocumentId === id ? null : state.selectedDocumentType,
+    })),
   toggleBinder: () => set((state) => ({ isBinderOpen: !state.isBinderOpen })),
   toggleNotes: () => set((state) => ({ isNotesOpen: !state.isNotesOpen })),
 }))

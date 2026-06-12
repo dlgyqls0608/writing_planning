@@ -27,7 +27,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { data, error } = await supabase
     .from('foreshadows')
-    .insert({ project_id: body.project_id, content: body.content, is_resolved: false })
+    .insert({
+      project_id: body.project_id,
+      content: body.content,
+      is_resolved: false,
+      planted_episode: body.planted_episode ?? null,
+      resolved_episode: body.resolved_episode ?? null,
+    })
     .select()
     .single()
 

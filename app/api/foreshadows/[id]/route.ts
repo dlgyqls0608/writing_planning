@@ -12,7 +12,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
   const body = await req.json()
   const { data, error } = await supabase
     .from('foreshadows')
-    .update({ ...body, updated_at: new Date().toISOString() })
+    .update(body)
     .eq('id', id)
     .select()
     .single()

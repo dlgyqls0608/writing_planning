@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   ReactFlow, Background, Controls, MiniMap, Handle, Position,
   useNodesState, useEdgesState, addEdge,
   type Node, type Edge, type NodeProps, type Connection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { X } from 'lucide-react'
+import { X, UserPlus } from 'lucide-react'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import type { Character } from '@/types'
 
@@ -196,6 +196,10 @@ export function CharacterMindMapInner({
   projectId: string
 }) {
   const qc = useQueryClient()
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addRole, setAddRole] = useState<'protagonist' | 'antagonist' | 'supporting'>('supporting')
+  const [addDesc, setAddDesc] = useState('')
 
   const deleteCharMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -203,6 +207,24 @@ export function CharacterMindMapInner({
       if (!res.ok) throw new Error('삭제 실패')
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['characters', projectId] }),
+  })
+
+  const addCharMutation = useMutation({
+    mutationFn: async (data: { name: string; role: string; description: string }) => {
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId, ...data }),
+      })
+      if (!res.ok) throw new Error('추가 실패')
+      return res.json()
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['characters', projectId] })
+      setAddName('')
+      setAddDesc('')
+      setShowAddForm(false)
+    },
   })
 
   deleteCallbackRef.current = (id: string) => {
@@ -266,14 +288,73 @@ export function CharacterMindMapInner({
     savePositions(projectId, nodes)
   }, [nodes, projectId])
 
+  function AddCharPanel() {
+    if (!showAddForm) {
+      return (
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#db2777] text-white text-xs font-medium shadow-lg hover:bg-pink-700 transition-colors"
+        >
+          <UserPlus className="size-3.5" />
+          인물 추가
+        </button>
+      )
+    }
+    return (
+      <div className="absolute bottom-4 right-4 z-10 w-52 bg-white rounded-xl border border-pink-200 shadow-xl p-3 space-y-2">
+        <p className="text-xs font-semibold text-[#db2777] flex items-center gap-1">
+          <UserPlus className="size-3.5" /> 인물 추가
+        </p>
+        <input
+          className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
+          placeholder="이름 *"
+          value={addName}
+          onChange={(e) => setAddName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && addName.trim() && addCharMutation.mutate({ name: addName.trim(), role: addRole, description: addDesc.trim() })}
+          autoFocus
+        />
+        <select
+          className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
+          value={addRole}
+          onChange={(e) => setAddRole(e.target.value as typeof addRole)}
+        >
+          <option value="protagonist">주인공</option>
+          <option value="antagonist">빌런/적대자</option>
+          <option value="supporting">조연</option>
+        </select>
+        <input
+          className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
+          placeholder="설명 (선택)"
+          value={addDesc}
+          onChange={(e) => setAddDesc(e.target.value)}
+        />
+        <div className="flex gap-1.5 justify-end">
+          <button
+            onClick={() => { setShowAddForm(false); setAddName(''); setAddDesc('') }}
+            className="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100"
+          >취소</button>
+          <button
+            onClick={() => {
+              if (!addName.trim()) return
+              addCharMutation.mutate({ name: addName.trim(), role: addRole, description: addDesc.trim() })
+            }}
+            disabled={!addName.trim() || addCharMutation.isPending}
+            className="text-xs px-2 py-1 rounded bg-[#db2777] text-white disabled:opacity-50"
+          >추가</button>
+        </div>
+      </div>
+    )
+  }
+
   if (characters.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
+      <div className="relative flex flex-col items-center justify-center h-full gap-3 text-gray-400">
         <span className="text-4xl">👤</span>
         <p className="text-sm text-center leading-relaxed">
           등록된 인물이 없습니다.<br />
-          오른쪽 패널의 <span className="font-medium text-gray-600">인물 관리</span>에서<br />인물을 추가해 주세요.
+          아래 버튼으로 바로 추가할 수 있어요.
         </p>
+        <AddCharPanel />
       </div>
     )
   }
@@ -288,6 +369,8 @@ export function CharacterMindMapInner({
         <span className="w-px h-3 bg-gray-300" />
         <span>연결선 더블클릭으로 라벨 수정</span>
       </div>
+
+      <AddCharPanel />
 
       <ReactFlow
         nodes={nodes}
