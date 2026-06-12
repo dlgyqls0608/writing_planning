@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Bookmark, Trash2, ChevronDown, ChevronUp, CheckSquare, Users, Pencil } from 'lucide-react'
+import { Plus, Bookmark, Trash2, ChevronDown, ChevronUp, CheckSquare, Users, Pencil, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { SuccessChecklist } from '@/components/checklist/SuccessChecklist'
 import type { Character, Foreshadow } from '@/types'
@@ -75,7 +75,7 @@ async function updateForeshadowEpisodes(id: string, planted_episode: number | nu
 
 async function fetchCharacters(projectId: string): Promise<Character[]> {
   const res = await fetch(`/api/characters?projectId=${projectId}`)
-  if (!res.ok) return []
+  if (!res.ok) throw new Error('인물 목록 불러오기 실패')
   return res.json()
 }
 
@@ -102,16 +102,26 @@ async function updateCharacter(id: string, data: { name?: string; role?: string;
 }
 
 async function deleteCharacter(id: string) {
-  await fetch(`/api/characters/${id}`, { method: 'DELETE' })
+  const res = await fetch(`/api/characters/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('인물 삭제 실패')
 }
 
-async function toggleCharacterDeath(id: string, is_deceased: boolean) {
+async function toggleCharacterDeath(id: string, is_deceased: boolean, deceased_episode?: number | null) {
+  const body: Record<string, unknown> = { is_deceased }
+  if (is_deceased) {
+    body.deceased_episode = deceased_episode ?? null
+  } else {
+    body.deceased_episode = null
+  }
   const res = await fetch(`/api/characters/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ is_deceased }),
+    body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error('사망 상태 업데이트 실패')
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    throw new Error(json.error ?? '사망 상태 업데이트 실패')
+  }
   return res.json()
 }
 
@@ -139,13 +149,21 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   const [showCharForm, setShowCharForm] = useState(false)
   const charNameComposing = useRef(false)
 
+  // 편집 상태
   const [editingCharId, setEditingCharId] = useState<string | null>(null)
   const [editCharName, setEditCharName] = useState('')
   const [editCharRole, setEditCharRole] = useState<'protagonist' | 'antagonist' | 'supporting'>('supporting')
   const [editCharDesc, setEditCharDesc] = useState('')
   const editCharNameComposing = useRef(false)
 
-  // localStorage에서 메모 불러오기
+  // 사망 처리 상태 (복선 회수와 동일한 패턴)
+  const [markingDeathId, setMarkingDeathId] = useState<string | null>(null)
+  const [markingDeathEp, setMarkingDeathEp] = useState('')
+
+  // 에러 상태
+  const [charError, setCharError] = useState<string | null>(null)
+  const [deathError, setDeathError] = useState<string | null>(null)
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey)
@@ -153,7 +171,6 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
     } catch {}
   }, [storageKey])
 
-  // 메모 변경 시 localStorage 저장
   useEffect(() => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(notes))
@@ -201,7 +218,7 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
     },
   })
 
-  const { data: characters = [] } = useQuery({
+  const { data: characters = [], error: charsError } = useQuery({
     queryKey: ['characters', projectId],
     queryFn: () => fetchCharacters(projectId),
     enabled: charactersOpen,
@@ -211,13 +228,15 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
     mutationFn: createCharacter,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['characters', projectId] })
-      setCharName(''); setCharDesc(''); setShowCharForm(false)
+      setCharName(''); setCharDesc(''); setShowCharForm(false); setCharError(null)
     },
+    onError: (e: Error) => setCharError(e.message),
   })
 
   const deleteCharMutation = useMutation({
     mutationFn: deleteCharacter,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['characters', projectId] }),
+    onError: (e: Error) => setCharError(e.message),
   })
 
   const updateCharMutation = useMutation({
@@ -226,13 +245,21 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['characters', projectId] })
       setEditingCharId(null)
+      setCharError(null)
     },
+    onError: (e: Error) => setCharError(e.message),
   })
 
   const toggleDeathMutation = useMutation({
-    mutationFn: ({ id, is_deceased }: { id: string; is_deceased: boolean }) =>
-      toggleCharacterDeath(id, is_deceased),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['characters', projectId] }),
+    mutationFn: ({ id, is_deceased, deceased_episode }: { id: string; is_deceased: boolean; deceased_episode?: number | null }) =>
+      toggleCharacterDeath(id, is_deceased, deceased_episode),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['characters', projectId] })
+      setMarkingDeathId(null)
+      setMarkingDeathEp('')
+      setDeathError(null)
+    },
+    onError: (e: Error) => setDeathError(e.message),
   })
 
   function addNote() {
@@ -254,6 +281,12 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
       resolved_episode: resolvedEp ? Number(resolvedEp) : undefined,
     })
   }
+
+  // 살아있는 인물 먼저, 사망 인물 나중에 정렬
+  const sortedCharacters = [...characters].sort((a, b) => {
+    if (a.is_deceased === b.is_deceased) return 0
+    return a.is_deceased ? 1 : -1
+  })
 
   return (
     <div className="flex flex-col h-full divide-y divide-gray-100">
@@ -490,127 +523,231 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
       {/* 인물 관리 */}
       <section className="p-3 flex flex-col gap-2">
         <button
-          onClick={() => setCharactersOpen((o) => !o)}
+          onClick={() => { setCharactersOpen((o) => !o); setCharError(null); setDeathError(null) }}
           className="w-full flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition-colors"
         >
           <span className="flex items-center gap-1.5">
             <Users className="size-3 text-[#0891b2]" />
             <span className="text-[#0891b2]">인물 관리</span>
+            {characters.length > 0 && (
+              <span className="text-[10px] font-normal text-gray-400">
+                ({characters.filter(c => !c.is_deceased).length}생존
+                {characters.some(c => c.is_deceased) && ` · ${characters.filter(c => c.is_deceased).length}사망`})
+              </span>
+            )}
           </span>
           {charactersOpen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
         </button>
 
         {charactersOpen && (
           <div className="space-y-2">
-            <div className="space-y-1.5 max-h-48 overflow-y-auto">
-              {characters.map((c) => (
-                <div
-                  key={c.id}
-                  className={`rounded px-2 py-1.5 group ${c.is_deceased ? 'bg-gray-100 border border-gray-200' : 'bg-[#e0f2fe]'}`}
-                >
-                  {editingCharId === c.id ? (
-                    <div className="space-y-1.5">
-                      <input
-                        className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
-                        placeholder="인물 이름 *"
-                        value={editCharName}
-                        onChange={(e) => { if (!editCharNameComposing.current) setEditCharName(e.target.value) }}
-                        onCompositionStart={() => { editCharNameComposing.current = true }}
-                        onCompositionEnd={(e) => { editCharNameComposing.current = false; setEditCharName(e.currentTarget.value) }}
-                        autoFocus
-                      />
-                      <select
-                        className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
-                        value={editCharRole}
-                        onChange={(e) => setEditCharRole(e.target.value as typeof editCharRole)}
-                      >
-                        <option value="protagonist">주인공</option>
-                        <option value="antagonist">빌런/적대자</option>
-                        <option value="supporting">조연</option>
-                      </select>
-                      <textarea
-                        className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2] resize-none"
-                        placeholder="인물 설명 (선택)"
-                        rows={2}
-                        value={editCharDesc}
-                        onChange={(e) => setEditCharDesc(e.target.value)}
-                      />
-                      <div className="flex gap-1 justify-end">
-                        <button
-                          onClick={() => setEditingCharId(null)}
-                          className="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100"
+            {/* DB 에러 (마이그레이션 미적용 등) */}
+            {charsError && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-2.5 py-2 text-[11px] text-red-600">
+                <p className="font-medium">인물 목록을 불러올 수 없습니다.</p>
+                <p className="mt-0.5 text-red-500">Supabase SQL Editor에서 <strong>supabase-migration-v4.sql</strong>을 실행했는지 확인하세요.</p>
+              </div>
+            )}
+
+            {/* 사망 처리 에러 */}
+            {deathError && (
+              <div className="flex items-start gap-1.5 rounded-lg bg-red-50 border border-red-200 px-2.5 py-2">
+                <p className="flex-1 text-[11px] text-red-600">{deathError}</p>
+                <button onClick={() => setDeathError(null)} className="shrink-0 text-red-400 hover:text-red-600">
+                  <X className="size-3" />
+                </button>
+              </div>
+            )}
+
+            {/* 인물 목록 */}
+            {!charsError && (
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {sortedCharacters.map((c) => (
+                  <div
+                    key={c.id}
+                    className={`rounded-lg border px-2 py-2 group ${
+                      c.is_deceased
+                        ? 'bg-gray-50 border-gray-200'
+                        : 'bg-[#e0f2fe] border-transparent'
+                    }`}
+                  >
+                    {editingCharId === c.id ? (
+                      /* ── 편집 폼 ── */
+                      <div className="space-y-1.5">
+                        <input
+                          className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
+                          placeholder="인물 이름 *"
+                          value={editCharName}
+                          onChange={(e) => { if (!editCharNameComposing.current) setEditCharName(e.target.value) }}
+                          onCompositionStart={() => { editCharNameComposing.current = true }}
+                          onCompositionEnd={(e) => { editCharNameComposing.current = false; setEditCharName(e.currentTarget.value) }}
+                          autoFocus
+                        />
+                        <select
+                          className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
+                          value={editCharRole}
+                          onChange={(e) => setEditCharRole(e.target.value as typeof editCharRole)}
                         >
-                          취소
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (!editCharName.trim()) return
-                            updateCharMutation.mutate({ id: c.id, name: editCharName.trim(), role: editCharRole, description: editCharDesc.trim() })
-                          }}
-                          disabled={!editCharName.trim() || updateCharMutation.isPending}
-                          className="text-xs px-2 py-1 rounded bg-[#0891b2] text-white disabled:opacity-50"
-                        >
-                          저장
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-1.5">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          {c.is_deceased && <span className="text-[11px] shrink-0">💀</span>}
-                          <span className={`text-xs font-semibold truncate ${c.is_deceased ? 'text-gray-400 line-through' : 'text-[#0c4a6e]'}`}>
-                            {c.name}
-                          </span>
-                          <span className={`text-[10px] shrink-0 ${c.is_deceased ? 'text-gray-400' : 'text-[#0891b2]'}`}>
-                            {c.is_deceased ? '사망' : c.role === 'protagonist' ? '주인공' : c.role === 'antagonist' ? '빌런' : '조연'}
-                          </span>
-                        </div>
-                        {c.description && (
-                          <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 ${c.is_deceased ? 'text-gray-400' : 'text-[#075985]'}`}>
-                            {c.description}
-                          </p>
+                          <option value="protagonist">주인공</option>
+                          <option value="antagonist">빌런/적대자</option>
+                          <option value="supporting">조연</option>
+                        </select>
+                        <textarea
+                          className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2] resize-none"
+                          placeholder="인물 설명 (선택)"
+                          rows={2}
+                          value={editCharDesc}
+                          onChange={(e) => setEditCharDesc(e.target.value)}
+                        />
+                        {charError && (
+                          <p className="text-[10px] text-red-500">{charError}</p>
                         )}
-                      </div>
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <button
-                          onClick={() => toggleDeathMutation.mutate({ id: c.id, is_deceased: !c.is_deceased })}
-                          className={`p-0.5 rounded text-[11px] transition-colors ${c.is_deceased ? 'text-green-600 hover:bg-green-100' : 'text-gray-400 hover:bg-gray-200'}`}
-                          title={c.is_deceased ? '생존으로 되돌리기' : '사망 처리'}
-                        >
-                          {c.is_deceased ? '↩' : '💀'}
-                        </button>
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 justify-end">
+                          <button
+                            onClick={() => { setEditingCharId(null); setCharError(null) }}
+                            className="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100"
+                          >
+                            취소
+                          </button>
                           <button
                             onClick={() => {
-                              setEditingCharId(c.id)
-                              setEditCharName(c.name)
-                              setEditCharRole(c.role)
-                              setEditCharDesc(c.description ?? '')
+                              if (!editCharName.trim()) return
+                              updateCharMutation.mutate({ id: c.id, name: editCharName.trim(), role: editCharRole, description: editCharDesc.trim() })
                             }}
-                            className="p-0.5 rounded hover:bg-blue-100 text-blue-400"
-                            title="수정"
+                            disabled={!editCharName.trim() || updateCharMutation.isPending}
+                            className="text-xs px-2 py-1 rounded bg-[#0891b2] text-white disabled:opacity-50"
                           >
-                            <Pencil className="size-3" />
-                          </button>
-                          <button
-                            onClick={() => deleteCharMutation.mutate(c.id)}
-                            className="p-0.5 rounded hover:bg-red-100 text-red-400"
-                            title="삭제"
-                          >
-                            <Trash2 className="size-3" />
+                            {updateCharMutation.isPending ? '저장 중...' : '저장'}
                           </button>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-              {characters.length === 0 && (
-                <p className="text-[10px] text-gray-400 italic">등록된 인물이 없습니다.</p>
-              )}
-            </div>
+                    ) : (
+                      /* ── 카드 뷰 ── */
+                      <>
+                        <div className="flex items-start gap-1.5">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {c.is_deceased && <span className="text-[11px] shrink-0">💀</span>}
+                              <span className={`text-xs font-semibold truncate ${c.is_deceased ? 'text-gray-400 line-through' : 'text-[#0c4a6e]'}`}>
+                                {c.name}
+                              </span>
+                              <span className={`text-[10px] shrink-0 px-1.5 py-0.5 rounded-full ${
+                                c.is_deceased
+                                  ? 'bg-gray-200 text-gray-500'
+                                  : c.role === 'protagonist'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : c.role === 'antagonist'
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {c.role === 'protagonist' ? '주인공' : c.role === 'antagonist' ? '빌런' : '조연'}
+                              </span>
+                            </div>
+                            {c.description && (
+                              <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 ${c.is_deceased ? 'text-gray-400' : 'text-[#075985]'}`}>
+                                {c.description}
+                              </p>
+                            )}
+                            {c.is_deceased && c.deceased_episode && (
+                              <p className="text-[10px] mt-0.5 text-gray-400">
+                                {c.deceased_episode}화에서 사망
+                              </p>
+                            )}
+                          </div>
+                          {/* 버튼 영역 */}
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {/* 편집 버튼 (hover) */}
+                            <button
+                              onClick={() => {
+                                setEditingCharId(c.id)
+                                setEditCharName(c.name)
+                                setEditCharRole(c.role)
+                                setEditCharDesc(c.description ?? '')
+                                setCharError(null)
+                              }}
+                              className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="수정"
+                            >
+                              <Pencil className="size-3" />
+                            </button>
 
+                            {/* 사망/생존 토글 — 항상 표시 */}
+                            {c.is_deceased ? (
+                              <button
+                                onClick={() => toggleDeathMutation.mutate({ id: c.id, is_deceased: false })}
+                                className="p-1 rounded text-green-600 hover:bg-green-100 transition-colors text-[11px] font-medium"
+                                title="생존으로 되돌리기"
+                                disabled={toggleDeathMutation.isPending}
+                              >
+                                ↩
+                              </button>
+                            ) : (
+                              markingDeathId === c.id ? null : (
+                                <button
+                                  onClick={() => { setMarkingDeathId(c.id); setMarkingDeathEp(''); setDeathError(null) }}
+                                  className="p-1 rounded text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors text-[11px]"
+                                  title="사망 처리"
+                                >
+                                  💀
+                                </button>
+                              )
+                            )}
+
+                            {/* 삭제 버튼 (hover) */}
+                            <button
+                              onClick={() => deleteCharMutation.mutate(c.id)}
+                              className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="삭제"
+                            >
+                              <Trash2 className="size-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 사망 에피소드 입력 패널 */}
+                        {markingDeathId === c.id && (
+                          <div className="mt-2 flex items-center gap-1.5 p-1.5 bg-gray-100 rounded-lg border border-gray-200">
+                            <span className="text-[10px] text-gray-500 shrink-0">💀 사망 화수:</span>
+                            <input
+                              type="number"
+                              className="w-16 text-xs border border-gray-300 rounded px-1.5 py-0.5 outline-none focus:border-gray-500"
+                              placeholder="선택"
+                              value={markingDeathEp}
+                              onChange={(e) => setMarkingDeathEp(e.target.value)}
+                              min={1}
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter')
+                                  toggleDeathMutation.mutate({ id: c.id, is_deceased: true, deceased_episode: markingDeathEp ? Number(markingDeathEp) : null })
+                                if (e.key === 'Escape') { setMarkingDeathId(null); setMarkingDeathEp('') }
+                              }}
+                            />
+                            <button
+                              onClick={() => toggleDeathMutation.mutate({ id: c.id, is_deceased: true, deceased_episode: markingDeathEp ? Number(markingDeathEp) : null })}
+                              disabled={toggleDeathMutation.isPending}
+                              className="shrink-0 px-2 py-0.5 text-[11px] bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                            >
+                              {toggleDeathMutation.isPending ? '...' : '확인'}
+                            </button>
+                            <button
+                              onClick={() => { setMarkingDeathId(null); setMarkingDeathEp('') }}
+                              className="shrink-0 p-0.5 text-gray-400 hover:text-gray-600"
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+                {characters.length === 0 && (
+                  <p className="text-[10px] text-gray-400 italic py-2">등록된 인물이 없습니다.</p>
+                )}
+              </div>
+            )}
+
+            {/* 인물 추가 폼 */}
             {showCharForm ? (
               <div className="space-y-1.5 border border-blue-100 rounded-lg p-2">
                 <input
@@ -637,9 +774,10 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                   value={charDesc}
                   onChange={(e) => setCharDesc(e.target.value)}
                 />
+                {charError && <p className="text-[10px] text-red-500">{charError}</p>}
                 <div className="flex gap-1 justify-end">
                   <button
-                    onClick={() => { setShowCharForm(false); setCharName(''); setCharDesc('') }}
+                    onClick={() => { setShowCharForm(false); setCharName(''); setCharDesc(''); setCharError(null) }}
                     className="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100"
                   >
                     취소
@@ -652,7 +790,7 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                     disabled={!charName.trim() || addCharMutation.isPending}
                     className="text-xs px-2 py-1 rounded bg-[#0891b2] text-white disabled:opacity-50"
                   >
-                    추가
+                    {addCharMutation.isPending ? '추가 중...' : '추가'}
                   </button>
                 </div>
               </div>

@@ -5,11 +5,11 @@ import {
   ChevronDown, ChevronRight, FileText, BarChart2, BookOpen, Bookmark,
   AlignLeft, Plus, Loader2, Globe, Zap, BookMarked, User, Layers, Network, Trash2,
 } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useProjectStore } from '@/stores/project'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import type { Project, Document, DocumentType } from '@/types'
+import type { Project, Document, DocumentType, Character } from '@/types'
 
 interface BinderProps {
   project: Project
@@ -198,10 +198,21 @@ function InlineAddForm({
 
 // ── 메인 Binder 컴포넌트 ──────────────────────────────────────────────────
 
+async function fetchCharacters(projectId: string): Promise<Character[]> {
+  const res = await fetch(`/api/characters?projectId=${projectId}`)
+  if (!res.ok) return []
+  return res.json()
+}
+
 export function Binder({ project }: BinderProps) {
   const { selectedDocumentId, selectedView, selectDocument, setSelectedView, addDocument, removeDocument, documents } = useProjectStore()
 
   const qc = useQueryClient()
+
+  const { data: characters = [] } = useQuery({
+    queryKey: ['characters', project.id],
+    queryFn: () => fetchCharacters(project.id),
+  })
 
   // 섹션 열림/닫힘 상태
   const [plotOpen, setPlotOpen] = useState(true)
@@ -554,26 +565,41 @@ export function Binder({ project }: BinderProps) {
         <SectionHeader icon={User} color="#db2777" label="캐릭터 카드" isOpen={charOpen} onToggle={() => setCharOpen((v) => !v)} />
         {charOpen && (
           <div className="ml-6 mt-0.5 space-y-0.5">
-            {charDocs.map((d) => (
-              <div key={d.id} className="group relative flex items-center">
-                <div className="flex-1 min-w-0">
-                  <SubItem
-                    icon={User} label={d.title} color="#db2777"
-                    selectedBg="bg-[#fce7f3]" selectedText="text-[#db2777]"
-                    isSelected={selectedDocumentId === d.id}
-                    isGenerated={d.status === 'generated'}
-                    onClick={() => selectDocument(d.id, 'character-card')}
-                  />
+            {charDocs.map((d) => {
+              const charData = characters.find((c) => c.name === d.title)
+              const isDeceased = charData?.is_deceased ?? false
+              return (
+                <div key={d.id} className="group relative flex items-center">
+                  <div className="flex-1 min-w-0">
+                    <button
+                      onClick={() => selectDocument(d.id, 'character-card')}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left transition-colors',
+                        selectedDocumentId === d.id
+                          ? 'bg-[#fce7f3] text-[#db2777] font-medium'
+                          : isDeceased
+                          ? 'text-gray-400 hover:bg-gray-100'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      )}
+                    >
+                      <User className="size-3.5 shrink-0" style={{ color: isDeceased ? '#9ca3af' : (selectedDocumentId === d.id ? undefined : '#db2777') }} />
+                      <span className={cn('flex-1 truncate', isDeceased && 'line-through')}>{d.title}</span>
+                      {isDeceased && <span className="text-[10px] shrink-0">💀</span>}
+                      {d.status === 'generated' && !isDeceased && (
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full shrink-0 bg-[#db2777]" />
+                      )}
+                    </button>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteDoc(d.id, d.title) }}
+                    className="absolute right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity z-10"
+                    title="삭제"
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDeleteDoc(d.id, d.title) }}
-                  className="absolute right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity z-10"
-                  title="삭제"
-                >
-                  <Trash2 className="size-3" />
-                </button>
-              </div>
-            ))}
+              )
+            })}
             {addingChar ? (
               <InlineAddForm
                 accentColor="#db2777"

@@ -16,6 +16,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
   if (typeof body.description === 'string') allowed.description = body.description
   const validRoles = ['protagonist', 'antagonist', 'supporting']
   if (typeof body.role === 'string' && validRoles.includes(body.role)) allowed.role = body.role
+  if (body.deceased_episode === null || typeof body.deceased_episode === 'number') allowed.deceased_episode = body.deceased_episode
 
   const { data, error } = await supabase
     .from('characters')
