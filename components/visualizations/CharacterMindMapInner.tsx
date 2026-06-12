@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow, Background, Controls, MiniMap, Handle, Position,
   useNodesState, useEdgesState, addEdge,
@@ -200,6 +200,7 @@ export function CharacterMindMapInner({
   const [addName, setAddName] = useState('')
   const [addRole, setAddRole] = useState<'protagonist' | 'antagonist' | 'supporting'>('supporting')
   const [addDesc, setAddDesc] = useState('')
+  const addNameComposing = useRef(false)
 
   const deleteCharMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -309,8 +310,13 @@ export function CharacterMindMapInner({
           className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
           placeholder="이름 *"
           value={addName}
-          onChange={(e) => setAddName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addName.trim() && addCharMutation.mutate({ name: addName.trim(), role: addRole, description: addDesc.trim() })}
+          onChange={(e) => { if (!addNameComposing.current) setAddName(e.target.value) }}
+          onCompositionStart={() => { addNameComposing.current = true }}
+          onCompositionEnd={(e) => { addNameComposing.current = false; setAddName(e.currentTarget.value) }}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return
+            if (e.key === 'Enter' && addName.trim()) addCharMutation.mutate({ name: addName.trim(), role: addRole, description: addDesc.trim() })
+          }}
           autoFocus
         />
         <select

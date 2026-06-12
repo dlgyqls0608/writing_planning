@@ -563,6 +563,36 @@ export function Editor({ project }: EditorProps) {
             <EmotionCurve content={displayContent} />
           ) : (
             <div className="max-w-3xl mx-auto">
+              {selectedDocumentType === 'character-card' && selectedDoc && !editMode && (
+                <div className="flex items-center gap-2 mb-5 pb-4 border-b border-gray-100">
+                  <span className="text-xs text-gray-400 shrink-0">캐릭터 이름</span>
+                  {editingTitle ? (
+                    <input
+                      autoFocus
+                      value={titleDraft}
+                      onChange={(e) => { if (!titleComposing.current) setTitleDraft(e.target.value) }}
+                      onCompositionStart={() => { titleComposing.current = true }}
+                      onCompositionEnd={(e) => { titleComposing.current = false; setTitleDraft(e.currentTarget.value) }}
+                      onBlur={() => saveTitle(titleDraft)}
+                      onKeyDown={(e) => {
+                        if (e.nativeEvent.isComposing) return
+                        if (e.key === 'Enter') saveTitle(titleDraft)
+                        if (e.key === 'Escape') setEditingTitle(false)
+                      }}
+                      className="text-base font-bold text-gray-900 border-b-2 border-[#db2777] outline-none bg-transparent min-w-[6rem] max-w-[20rem]"
+                    />
+                  ) : (
+                    <button
+                      onClick={() => { setTitleDraft(selectedDoc.title); setEditingTitle(true) }}
+                      className="flex items-center gap-1.5 text-base font-bold text-gray-900 hover:text-[#db2777] transition-colors group"
+                      title="클릭하여 이름 편집"
+                    >
+                      {selectedDoc.title}
+                      <Pencil className="size-3.5 text-gray-400 group-hover:text-[#db2777] transition-colors" />
+                    </button>
+                  )}
+                </div>
+              )}
               {editMode ? (
                 <textarea
                   className="w-full min-h-[600px] text-sm text-gray-800 leading-relaxed bg-transparent outline-none resize-none font-mono"
