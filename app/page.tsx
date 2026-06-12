@@ -8,6 +8,21 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
 import type { Project } from '@/types'
 
+function extractPlainText(markdown: string): string {
+  return markdown
+    .split('\n')
+    .filter((line) => {
+      const t = line.trim()
+      return t && !t.startsWith('|') && !t.match(/^[-|:\s]+$/) && !t.startsWith('#')
+    })
+    .join(' ')
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 const GENRE_OPTIONS = ['현대물', '판타지', '로맨스', '로맨스판타지', '무협', '헌터물', 'SF', '기타']
 const STATUS_LABEL: Record<string, string> = {
   empty: '시작 전',
@@ -196,7 +211,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="text-xs text-gray-400">
                 {project.logline ? (
-                  <p className="line-clamp-2 text-gray-600">{project.logline}</p>
+                  <p className="line-clamp-2 text-gray-600">{extractPlainText(project.logline)}</p>
                 ) : (
                   <p className="italic">로그라인 미작성</p>
                 )}
