@@ -91,6 +91,16 @@ async function createCharacter(data: {
   return res.json()
 }
 
+async function updateCharacter(id: string, data: { name?: string; role?: string; description?: string }) {
+  const res = await fetch(`/api/characters/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error('인물 수정 실패')
+  return res.json()
+}
+
 async function deleteCharacter(id: string) {
   await fetch(`/api/characters/${id}`, { method: 'DELETE' })
 }
@@ -128,6 +138,12 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   const [charDesc, setCharDesc] = useState('')
   const [showCharForm, setShowCharForm] = useState(false)
   const charNameComposing = useRef(false)
+
+  const [editingCharId, setEditingCharId] = useState<string | null>(null)
+  const [editCharName, setEditCharName] = useState('')
+  const [editCharRole, setEditCharRole] = useState<'protagonist' | 'antagonist' | 'supporting'>('supporting')
+  const [editCharDesc, setEditCharDesc] = useState('')
+  const editCharNameComposing = useRef(false)
 
   // localStorage에서 메모 불러오기
   useEffect(() => {
@@ -202,6 +218,15 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   const deleteCharMutation = useMutation({
     mutationFn: deleteCharacter,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['characters', projectId] }),
+  })
+
+  const updateCharMutation = useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name: string; role: string; description: string }) =>
+      updateCharacter(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['characters', projectId] })
+      setEditingCharId(null)
+    },
   })
 
   const toggleDeathMutation = useMutation({
@@ -481,40 +506,104 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
               {characters.map((c) => (
                 <div
                   key={c.id}
-                  className={`flex items-start gap-1.5 rounded px-2 py-1.5 group ${c.is_deceased ? 'bg-gray-100 border border-gray-200' : 'bg-[#e0f2fe]'}`}
+                  className={`rounded px-2 py-1.5 group ${c.is_deceased ? 'bg-gray-100 border border-gray-200' : 'bg-[#e0f2fe]'}`}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {c.is_deceased && <span className="text-[11px] shrink-0">💀</span>}
-                      <span className={`text-xs font-semibold truncate ${c.is_deceased ? 'text-gray-400 line-through' : 'text-[#0c4a6e]'}`}>
-                        {c.name}
-                      </span>
-                      <span className={`text-[10px] shrink-0 ${c.is_deceased ? 'text-gray-400' : 'text-[#0891b2]'}`}>
-                        {c.is_deceased ? '사망' : c.role === 'protagonist' ? '주인공' : c.role === 'antagonist' ? '빌런' : '조연'}
-                      </span>
+                  {editingCharId === c.id ? (
+                    <div className="space-y-1.5">
+                      <input
+                        className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
+                        placeholder="인물 이름 *"
+                        value={editCharName}
+                        onChange={(e) => { if (!editCharNameComposing.current) setEditCharName(e.target.value) }}
+                        onCompositionStart={() => { editCharNameComposing.current = true }}
+                        onCompositionEnd={(e) => { editCharNameComposing.current = false; setEditCharName(e.currentTarget.value) }}
+                        autoFocus
+                      />
+                      <select
+                        className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
+                        value={editCharRole}
+                        onChange={(e) => setEditCharRole(e.target.value as typeof editCharRole)}
+                      >
+                        <option value="protagonist">주인공</option>
+                        <option value="antagonist">빌런/적대자</option>
+                        <option value="supporting">조연</option>
+                      </select>
+                      <textarea
+                        className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2] resize-none"
+                        placeholder="인물 설명 (선택)"
+                        rows={2}
+                        value={editCharDesc}
+                        onChange={(e) => setEditCharDesc(e.target.value)}
+                      />
+                      <div className="flex gap-1 justify-end">
+                        <button
+                          onClick={() => setEditingCharId(null)}
+                          className="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100"
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!editCharName.trim()) return
+                            updateCharMutation.mutate({ id: c.id, name: editCharName.trim(), role: editCharRole, description: editCharDesc.trim() })
+                          }}
+                          disabled={!editCharName.trim() || updateCharMutation.isPending}
+                          className="text-xs px-2 py-1 rounded bg-[#0891b2] text-white disabled:opacity-50"
+                        >
+                          저장
+                        </button>
+                      </div>
                     </div>
-                    {c.description && (
-                      <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 ${c.is_deceased ? 'text-gray-400' : 'text-[#075985]'}`}>
-                        {c.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => toggleDeathMutation.mutate({ id: c.id, is_deceased: !c.is_deceased })}
-                      className={`p-0.5 rounded text-[11px] ${c.is_deceased ? 'hover:bg-green-100 text-green-600' : 'hover:bg-gray-200 text-gray-500'}`}
-                      title={c.is_deceased ? '생존으로 되돌리기' : '사망 처리'}
-                    >
-                      {c.is_deceased ? '↩' : '💀'}
-                    </button>
-                    <button
-                      onClick={() => deleteCharMutation.mutate(c.id)}
-                      className="p-0.5 rounded hover:bg-red-100 text-red-400"
-                      title="삭제"
-                    >
-                      <Trash2 className="size-3" />
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="flex items-start gap-1.5">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {c.is_deceased && <span className="text-[11px] shrink-0">💀</span>}
+                          <span className={`text-xs font-semibold truncate ${c.is_deceased ? 'text-gray-400 line-through' : 'text-[#0c4a6e]'}`}>
+                            {c.name}
+                          </span>
+                          <span className={`text-[10px] shrink-0 ${c.is_deceased ? 'text-gray-400' : 'text-[#0891b2]'}`}>
+                            {c.is_deceased ? '사망' : c.role === 'protagonist' ? '주인공' : c.role === 'antagonist' ? '빌런' : '조연'}
+                          </span>
+                        </div>
+                        {c.description && (
+                          <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 ${c.is_deceased ? 'text-gray-400' : 'text-[#075985]'}`}>
+                            {c.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          onClick={() => toggleDeathMutation.mutate({ id: c.id, is_deceased: !c.is_deceased })}
+                          className={`p-0.5 rounded text-[11px] transition-colors ${c.is_deceased ? 'text-green-600 hover:bg-green-100' : 'text-gray-400 hover:bg-gray-200'}`}
+                          title={c.is_deceased ? '생존으로 되돌리기' : '사망 처리'}
+                        >
+                          {c.is_deceased ? '↩' : '💀'}
+                        </button>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => {
+                              setEditingCharId(c.id)
+                              setEditCharName(c.name)
+                              setEditCharRole(c.role)
+                              setEditCharDesc(c.description ?? '')
+                            }}
+                            className="p-0.5 rounded hover:bg-blue-100 text-blue-400"
+                            title="수정"
+                          >
+                            <Pencil className="size-3" />
+                          </button>
+                          <button
+                            onClick={() => deleteCharMutation.mutate(c.id)}
+                            className="p-0.5 rounded hover:bg-red-100 text-red-400"
+                            title="삭제"
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               {characters.length === 0 && (
