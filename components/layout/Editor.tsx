@@ -526,22 +526,18 @@ export function Editor({ project }: EditorProps) {
                   autoFocus
                 />
               ) : (
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setEditMode(true)}
-                  onKeyDown={(e) => e.key === 'Enter' && setEditMode(true)}
-                  className="group relative cursor-text"
-                  title="클릭하여 편집"
-                >
-                  <div className="absolute inset-0 -m-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity border-2 border-dashed border-gray-300 pointer-events-none" />
-                  <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 bg-white border border-gray-200 rounded px-1.5 py-0.5 shadow-sm">
+                <div className="relative">
+                  {/* 편집 힌트 (DocRenderer 위에 겹치지 않는 영역에만 표시) */}
+                  <div className="absolute -top-1 right-0 z-10">
+                    <button
+                      onClick={() => setEditMode(true)}
+                      className="flex items-center gap-1 text-[10px] text-gray-400 bg-white border border-gray-200 rounded px-1.5 py-0.5 shadow-sm hover:text-gray-600 hover:border-gray-300 transition-colors"
+                    >
                       <Pencil className="size-2.5" />
-                      클릭하여 편집
-                    </span>
+                      전체 편집
+                    </button>
                   </div>
-                  {/* 블록 단위 삭제를 위해 onDelete 전달 */}
+                  {/* 블록 단위 삭제 — 삭제 버튼 클릭이 편집 전환과 충돌하지 않음 */}
                   <DocRenderer
                     content={displayContent}
                     onDelete={handleDeleteBlock}
