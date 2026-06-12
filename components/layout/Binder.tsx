@@ -283,9 +283,9 @@ export function Binder({ project }: BinderProps) {
     }
   }
 
-  // ── 캐릭터 카드 삭제 ──────────────────────────────────────────────────────
-  async function handleDeleteChar(id: string) {
-    if (!window.confirm('캐릭터 카드를 삭제할까요?')) return
+  // ── 문서 삭제 ─────────────────────────────────────────────────────────────
+  async function handleDeleteDoc(id: string, label: string) {
+    if (!window.confirm(`'${label}'을(를) 삭제할까요?`)) return
     removeDocument(id)
     await fetch(`/api/documents/${id}`, { method: 'DELETE' })
   }
@@ -340,6 +340,8 @@ export function Binder({ project }: BinderProps) {
   }
 
   // ── 렌더 ─────────────────────────────────────────────────────────────────
+  const loglineDoc = getDoc('logline')
+  const synopsisDoc = getDoc('synopsis')
   const plotDoc = getDoc('plot')
   const plotChapters = getDocs('plot-chapter')
   const treatmentDocs = getDocs('treatment')
@@ -357,18 +359,44 @@ export function Binder({ project }: BinderProps) {
       <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
 
         {/* ── 로그라인 ── */}
-        <SingleDocItem
-          type="logline" label="로그라인" icon={AlignLeft}
-          color="#4f46e5" tintClass="bg-[#ede9fe] text-[#4f46e5]"
-          doc={getDoc('logline')} selectedId={selectedDocumentId} onSelect={selectDocument}
-        />
+        <div className="group relative flex items-center">
+          <div className="flex-1 min-w-0">
+            <SingleDocItem
+              type="logline" label="로그라인" icon={AlignLeft}
+              color="#4f46e5" tintClass="bg-[#ede9fe] text-[#4f46e5]"
+              doc={loglineDoc} selectedId={selectedDocumentId} onSelect={selectDocument}
+            />
+          </div>
+          {loglineDoc && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleDeleteDoc(loglineDoc.id, '로그라인') }}
+              className="absolute right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity z-10"
+              title="삭제"
+            >
+              <Trash2 className="size-3" />
+            </button>
+          )}
+        </div>
 
         {/* ── 시놉시스 ── */}
-        <SingleDocItem
-          type="synopsis" label="시놉시스" icon={FileText}
-          color="#0891b2" tintClass="bg-[#e0f2fe] text-[#0891b2]"
-          doc={getDoc('synopsis')} selectedId={selectedDocumentId} onSelect={selectDocument}
-        />
+        <div className="group relative flex items-center">
+          <div className="flex-1 min-w-0">
+            <SingleDocItem
+              type="synopsis" label="시놉시스" icon={FileText}
+              color="#0891b2" tintClass="bg-[#e0f2fe] text-[#0891b2]"
+              doc={synopsisDoc} selectedId={selectedDocumentId} onSelect={selectDocument}
+            />
+          </div>
+          {synopsisDoc && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleDeleteDoc(synopsisDoc.id, '시놉시스') }}
+              className="absolute right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity z-10"
+              title="삭제"
+            >
+              <Trash2 className="size-3" />
+            </button>
+          )}
+        </div>
 
         {/* ── 플롯 섹션 ── */}
         <SectionHeader icon={BarChart2} color="#16a34a" label="플롯" isOpen={plotOpen} onToggle={() => setPlotOpen((v) => !v)} />
@@ -389,13 +417,24 @@ export function Binder({ project }: BinderProps) {
             )}
             {/* 챕터 목록 */}
             {plotChapters.map((d) => (
-              <SubItem
-                key={d.id} icon={FileText} label={d.title} color="#16a34a"
-                selectedBg="bg-[#dcfce7]" selectedText="text-[#16a34a]"
-                isSelected={selectedDocumentId === d.id}
-                isGenerated={d.status === 'generated'}
-                onClick={() => selectDocument(d.id, 'plot-chapter')}
-              />
+              <div key={d.id} className="group relative flex items-center">
+                <div className="flex-1 min-w-0">
+                  <SubItem
+                    icon={FileText} label={d.title} color="#16a34a"
+                    selectedBg="bg-[#dcfce7]" selectedText="text-[#16a34a]"
+                    isSelected={selectedDocumentId === d.id}
+                    isGenerated={d.status === 'generated'}
+                    onClick={() => selectDocument(d.id, 'plot-chapter')}
+                  />
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteDoc(d.id, d.title) }}
+                  className="absolute right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity z-10"
+                  title="삭제"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              </div>
             ))}
             {/* 챕터 추가 */}
             {addingPlotChapter ? (
@@ -420,13 +459,24 @@ export function Binder({ project }: BinderProps) {
         {treatmentOpen && (
           <div className="ml-6 mt-0.5 space-y-0.5">
             {treatmentDocs.map((d) => (
-              <SubItem
-                key={d.id} icon={FileText} label={d.title} color="#d97706"
-                selectedBg="bg-[#fef3c7]" selectedText="text-[#d97706]"
-                isSelected={selectedDocumentId === d.id}
-                isGenerated={d.status === 'generated'}
-                onClick={() => selectDocument(d.id, 'treatment')}
-              />
+              <div key={d.id} className="group relative flex items-center">
+                <div className="flex-1 min-w-0">
+                  <SubItem
+                    icon={FileText} label={d.title} color="#d97706"
+                    selectedBg="bg-[#fef3c7]" selectedText="text-[#d97706]"
+                    isSelected={selectedDocumentId === d.id}
+                    isGenerated={d.status === 'generated'}
+                    onClick={() => selectDocument(d.id, 'treatment')}
+                  />
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteDoc(d.id, d.title) }}
+                  className="absolute right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity z-10"
+                  title="삭제"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              </div>
             ))}
             {addingTreatment ? (
               <InlineAddForm
@@ -515,7 +565,7 @@ export function Binder({ project }: BinderProps) {
                   />
                 </div>
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleDeleteChar(d.id) }}
+                  onClick={(e) => { e.stopPropagation(); handleDeleteDoc(d.id, d.title) }}
                   className="absolute right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-opacity z-10"
                   title="삭제"
                 >
