@@ -172,6 +172,7 @@ function InlineAddForm({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return
             if (e.key === 'Enter') onConfirm()
             if (e.key === 'Escape') onCancel()
           }}

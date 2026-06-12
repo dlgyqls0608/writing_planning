@@ -98,6 +98,9 @@ export function Editor({ project }: EditorProps) {
   const [notionDialogOpen, setNotionDialogOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [showEmotionCurve, setShowEmotionCurve] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+  const titleComposing = useRef(false)
   // 변경 비교: 재생성 전 원본 내용 보관
   const [prevContent, setPrevContent] = useState<string | null>(null)
 
@@ -127,6 +130,7 @@ export function Editor({ project }: EditorProps) {
     setHistoryOpen(false)
     setShowEmotionCurve(false)
     setPrevContent(null)
+    setEditingTitle(false)
   }, [selectedDocumentId])
 
   const isDiffMode = prevContent !== null && !isStreaming && !!streamedText
@@ -227,6 +231,18 @@ export function Editor({ project }: EditorProps) {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  async function saveTitle(newTitle: string) {
+    const trimmed = newTitle.trim()
+    setEditingTitle(false)
+    if (!trimmed || !selectedDoc || trimmed === selectedDoc.title) return
+    updateDocument(selectedDoc.id, { title: trimmed })
+    await fetch(`/api/documents/${selectedDoc.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: trimmed }),
+    })
   }
 
   // 변경 수락: diff 해제하고 새 내용 유지
@@ -435,6 +451,36 @@ export function Editor({ project }: EditorProps) {
         <div className="flex items-center gap-2">
           <div className="w-1 h-4 rounded-full" style={{ backgroundColor: meta?.color }} />
           <span className="text-sm font-semibold text-gray-800">{meta?.title}</span>
+          {selectedDocumentType === 'character-card' && selectedDoc && (
+            <>
+              <span className="text-gray-300 select-none">·</span>
+              {editingTitle ? (
+                <input
+                  autoFocus
+                  value={titleDraft}
+                  onChange={(e) => { if (!titleComposing.current) setTitleDraft(e.target.value) }}
+                  onCompositionStart={() => { titleComposing.current = true }}
+                  onCompositionEnd={(e) => { titleComposing.current = false; setTitleDraft(e.currentTarget.value) }}
+                  onBlur={() => saveTitle(titleDraft)}
+                  onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing) return
+                    if (e.key === 'Enter') saveTitle(titleDraft)
+                    if (e.key === 'Escape') setEditingTitle(false)
+                  }}
+                  className="text-sm font-semibold text-gray-800 border-b border-[#db2777] outline-none bg-transparent min-w-[4rem] max-w-[12rem]"
+                />
+              ) : (
+                <button
+                  onClick={() => { setTitleDraft(selectedDoc.title); setEditingTitle(true) }}
+                  className="text-sm font-semibold text-gray-600 hover:text-[#db2777] transition-colors group flex items-center gap-1"
+                  title="이름 편집"
+                >
+                  {selectedDoc.title}
+                  <Pencil className="size-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                </button>
+              )}
+            </>
+          )}
           {isDirty && <span className="text-xs text-amber-500 font-medium">● 수정됨</span>}
           {error && (
             <span className="text-xs text-red-500 font-medium">{error}</span>

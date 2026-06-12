@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Plus, Bookmark, Trash2, ChevronDown, ChevronUp, CheckSquare, Users, Pencil } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { SuccessChecklist } from '@/components/checklist/SuccessChecklist'
@@ -127,6 +127,7 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   const [charRole, setCharRole] = useState<'protagonist' | 'antagonist' | 'supporting'>('supporting')
   const [charDesc, setCharDesc] = useState('')
   const [showCharForm, setShowCharForm] = useState(false)
+  const charNameComposing = useRef(false)
 
   // localStorage에서 메모 불러오기
   useEffect(() => {
@@ -527,7 +528,9 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                   className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
                   placeholder="인물 이름 *"
                   value={charName}
-                  onChange={(e) => setCharName(e.target.value)}
+                  onChange={(e) => { if (!charNameComposing.current) setCharName(e.target.value) }}
+                  onCompositionStart={() => { charNameComposing.current = true }}
+                  onCompositionEnd={(e) => { charNameComposing.current = false; setCharName(e.currentTarget.value) }}
                 />
                 <select
                   className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
