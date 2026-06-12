@@ -238,12 +238,14 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
               <p className="flex-1 text-xs text-gray-700 bg-gray-50 rounded px-2 py-1.5">
                 {n.text}
               </p>
-              <button
-                onClick={() => deleteNote(n.id)}
-                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-gray-200 text-gray-400 transition-opacity mt-0.5"
-              >
-                <Trash2 className="size-3" />
-              </button>
+              <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                <button
+                  onClick={() => deleteNote(n.id)}
+                  className="p-0.5 rounded hover:bg-gray-200 text-gray-400"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              </div>
             </div>
           ))}
           {notes.length === 0 && (
@@ -375,26 +377,28 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                       title="미회수로 되돌리기"
                     >✓완료</button>
                   )}
-                  {editingEpId !== f.id && (
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {editingEpId !== f.id && (
+                      <button
+                        onClick={() => {
+                          setEditingEpId(f.id)
+                          setEditPlantedEp(f.planted_episode ? String(f.planted_episode) : '')
+                          setEditResolvedEp(f.resolved_episode ? String(f.resolved_episode) : '')
+                          setResolvingId(null)
+                        }}
+                        className="p-0.5 rounded hover:bg-orange-100 text-orange-400"
+                        title="화수 수정"
+                      >
+                        <Pencil className="size-3" />
+                      </button>
+                    )}
                     <button
-                      onClick={() => {
-                        setEditingEpId(f.id)
-                        setEditPlantedEp(f.planted_episode ? String(f.planted_episode) : '')
-                        setEditResolvedEp(f.resolved_episode ? String(f.resolved_episode) : '')
-                        setResolvingId(null)
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-orange-100 text-orange-400 transition-opacity"
-                      title="화수 수정"
+                      onClick={() => deleteMutation.mutate(f.id)}
+                      className="p-0.5 rounded hover:bg-red-200 text-[#dc2626]"
                     >
-                      <Pencil className="size-3" />
+                      <Trash2 className="size-3" />
                     </button>
-                  )}
-                  <button
-                    onClick={() => deleteMutation.mutate(f.id)}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-200 text-[#dc2626] transition-opacity"
-                  >
-                    <Trash2 className="size-3" />
-                  </button>
+                  </div>
                 </div>
               </div>
             </div>
