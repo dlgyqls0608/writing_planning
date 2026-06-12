@@ -7,7 +7,11 @@ import {
   type Node, type Edge, type NodeProps, type Connection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { X } from 'lucide-react'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
 import type { Character } from '@/types'
+
+const deleteCallbackRef = { current: null as ((id: string) => void) | null }
 
 const ROLE_COLOR = {
   protagonist: { bg: '#ede9fe', border: '#4f46e5', text: '#3730a3', label: '주인공', mini: '#4f46e5' },
@@ -23,19 +27,31 @@ type CharacterNodeData = {
   [key: string]: unknown
 }
 
-function CharacterNode({ data }: NodeProps<Node<CharacterNodeData>>) {
+function CharacterNode({ id, data }: NodeProps<Node<CharacterNodeData>>) {
   const style = ROLE_COLOR[data.role as keyof typeof ROLE_COLOR] ?? ROLE_COLOR.supporting
   const dead = data.isDeceased
 
+  function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation()
+    deleteCallbackRef.current?.(id)
+  }
+
   return (
     <div
-      className="px-3 py-2 rounded-xl border-2 shadow-sm text-center min-w-[100px] max-w-[140px] cursor-grab active:cursor-grabbing"
+      className="group relative px-3 py-2 rounded-xl border-2 shadow-sm text-center min-w-[100px] max-w-[140px] cursor-grab active:cursor-grabbing"
       style={{
         backgroundColor: dead ? '#f3f4f6' : style.bg,
         borderColor: dead ? '#9ca3af' : style.border,
         opacity: dead ? 0.65 : 1,
       }}
     >
+      <button
+        onClick={handleDelete}
+        className="absolute -top-2 -right-2 size-4 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10 nodrag"
+        title="삭제"
+      >
+        <X className="size-2.5" />
+      </button>
       {/* 4방향 연결 핸들 — 호버 시 표시 */}
       <Handle type="target" position={Position.Top}    id="top"    className="!w-2.5 !h-2.5 !bg-gray-400 !border-white !opacity-0 hover:!opacity-100 transition-opacity" />
       <Handle type="target" position={Position.Left}   id="left"   className="!w-2.5 !h-2.5 !bg-gray-400 !border-white !opacity-0 hover:!opacity-100 transition-opacity" />
@@ -179,6 +195,22 @@ export function CharacterMindMapInner({
   characters: Character[]
   projectId: string
 }) {
+  const qc = useQueryClient()
+
+  const deleteCharMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/characters/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('삭제 실패')
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['characters', projectId] }),
+  })
+
+  deleteCallbackRef.current = (id: string) => {
+    if (window.confirm('이 인물을 삭제할까요?')) {
+      deleteCharMutation.mutate(id)
+    }
+  }
+
   const initialData = useMemo(() => {
     const { nodes: autoNodes, edges: autoEdges } = buildGraph(characters)
     const savedPos  = loadPositions(projectId)

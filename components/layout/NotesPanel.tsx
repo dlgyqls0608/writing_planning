@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Bookmark, Trash2, ChevronDown, ChevronUp, CheckSquare, Users } from 'lucide-react'
+import { Plus, Bookmark, Trash2, ChevronDown, ChevronUp, CheckSquare, Users, Pencil } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { SuccessChecklist } from '@/components/checklist/SuccessChecklist'
 import type { Character, Foreshadow } from '@/types'
@@ -54,6 +54,21 @@ async function deleteForeshadow(id: string) {
   if (!res.ok) throw new Error('복선 삭제 실패')
 }
 
+async function updateForeshadowEpisodes(id: string, planted_episode: number | null, resolved_episode: number | null) {
+  const body: Record<string, unknown> = {}
+  if (planted_episode !== null) body.planted_episode = planted_episode
+  else body.planted_episode = null
+  if (resolved_episode !== null) body.resolved_episode = resolved_episode
+  else body.resolved_episode = null
+  const res = await fetch(`/api/foreshadows/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('화수 업데이트 실패')
+  return res.json()
+}
+
 async function fetchCharacters(projectId: string): Promise<Character[]> {
   const res = await fetch(`/api/characters?projectId=${projectId}`)
   if (!res.ok) return []
@@ -98,6 +113,9 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   const [resolvedEp, setResolvedEp] = useState('')
   const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [resolvingEp, setResolvingEp] = useState('')
+  const [editingEpId, setEditingEpId] = useState<string | null>(null)
+  const [editPlantedEp, setEditPlantedEp] = useState('')
+  const [editResolvedEp, setEditResolvedEp] = useState('')
 
   const [checklistOpen, setChecklistOpen] = useState(false)
   const [charactersOpen, setCharactersOpen] = useState(false)
@@ -149,6 +167,17 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   const deleteMutation = useMutation({
     mutationFn: deleteForeshadow,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['foreshadows', projectId] }),
+  })
+
+  const editEpMutation = useMutation({
+    mutationFn: ({ id, planted, resolved }: { id: string; planted: number | null; resolved: number | null }) =>
+      updateForeshadowEpisodes(id, planted, resolved),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['foreshadows', projectId] })
+      setEditingEpId(null)
+      setEditPlantedEp('')
+      setEditResolvedEp('')
+    },
   })
 
   const { data: characters = [] } = useQuery({
@@ -288,6 +317,46 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                       >✕</button>
                     </div>
                   )}
+                  {editingEpId === f.id && (
+                    <div className="flex flex-col gap-1 mt-1.5 p-1.5 bg-orange-50 rounded border border-orange-200">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-gray-500 shrink-0 w-12">🌱 심는:</span>
+                        <input
+                          type="number"
+                          className="w-14 text-xs border border-orange-300 rounded px-1.5 py-0.5 outline-none focus:border-orange-400"
+                          placeholder="화수"
+                          value={editPlantedEp}
+                          onChange={(e) => setEditPlantedEp(e.target.value)}
+                          min={1}
+                          autoFocus
+                        />
+                        <span className="text-[10px] text-gray-500 shrink-0 w-12">📌 회수:</span>
+                        <input
+                          type="number"
+                          className="w-14 text-xs border border-orange-300 rounded px-1.5 py-0.5 outline-none focus:border-orange-400"
+                          placeholder="화수"
+                          value={editResolvedEp}
+                          onChange={(e) => setEditResolvedEp(e.target.value)}
+                          min={1}
+                        />
+                      </div>
+                      <div className="flex gap-1 justify-end">
+                        <button
+                          onClick={() => editEpMutation.mutate({
+                            id: f.id,
+                            planted: editPlantedEp ? Number(editPlantedEp) : null,
+                            resolved: editResolvedEp ? Number(editResolvedEp) : null,
+                          })}
+                          disabled={editEpMutation.isPending}
+                          className="px-2 py-0.5 text-[11px] bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50"
+                        >저장</button>
+                        <button
+                          onClick={() => { setEditingEpId(null); setEditPlantedEp(''); setEditResolvedEp('') }}
+                          className="px-1.5 py-0.5 text-[11px] text-gray-400 border border-gray-200 rounded hover:bg-gray-100"
+                        >취소</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {!f.is_resolved ? (
@@ -305,6 +374,20 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                       className="text-[10px] px-1 py-0.5 text-green-600 hover:text-gray-500 transition-colors"
                       title="미회수로 되돌리기"
                     >✓완료</button>
+                  )}
+                  {editingEpId !== f.id && (
+                    <button
+                      onClick={() => {
+                        setEditingEpId(f.id)
+                        setEditPlantedEp(f.planted_episode ? String(f.planted_episode) : '')
+                        setEditResolvedEp(f.resolved_episode ? String(f.resolved_episode) : '')
+                        setResolvingId(null)
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-orange-100 text-orange-400 transition-opacity"
+                      title="화수 수정"
+                    >
+                      <Pencil className="size-3" />
+                    </button>
                   )}
                   <button
                     onClick={() => deleteMutation.mutate(f.id)}
