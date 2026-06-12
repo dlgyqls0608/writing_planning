@@ -97,9 +97,6 @@ const SYSTEM_PROMPTS: Record<DocumentType, string> = {
 |------|---------|---------|---------|---------|
 | [X]화 | | | | |
 | [X+1]화 | | | | |
-| [X+2]화 | | | | |
-| [X+3]화 | | | | |
-| [X+4]화 | | | | |
 
 (위 표를 화수만큼 반복)
 
@@ -139,8 +136,6 @@ const SYSTEM_PROMPTS: Record<DocumentType, string> = {
 |------|---------|---------|---------|---------|
 | 장면1 | | | | |
 | 장면2 | | | | |
-| 장면3 | | | | |
-| 장면4 | | | | |
 
 ## 핵심 장면 / 대사 초안
 
@@ -207,8 +202,6 @@ const SYSTEM_PROMPTS: Record<DocumentType, string> = {
 | 장소명 | 특징 | 등장 의미 |
 |--------|------|---------|
 | | | |
-| | | |
-| | | |
 
 ---
 
@@ -242,8 +235,6 @@ const SYSTEM_PROMPTS: Record<DocumentType, string> = {
 | 1 | | | |
 | 2 | | | |
 | 3 | | | |
-| 4 | | | |
-| 5 | | | |
 
 ---
 
@@ -257,7 +248,6 @@ const SYSTEM_PROMPTS: Record<DocumentType, string> = {
 
 | 제약 | 설명 |
 |------|------|
-| | |
 | | |
 
 ---
@@ -310,7 +300,6 @@ const SYSTEM_PROMPTS: Record<DocumentType, string> = {
 | 표현 | 의미 | 사용 맥락 |
 |------|------|---------|
 | | | |
-| | | |
 
 ---
 
@@ -360,7 +349,6 @@ const SYSTEM_PROMPTS: Record<DocumentType, string> = {
 
 | 인물 | 관계 | 감정 온도 |
 |------|------|---------|
-| | | |
 | | | |
 
 ---
