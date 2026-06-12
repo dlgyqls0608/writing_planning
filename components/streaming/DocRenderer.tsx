@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { X } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { parseBlocks, Block } from '@/lib/docParser'
 
 // ── inline parser: **bold**, *italic* ──────────────────────────────────────
@@ -154,13 +154,13 @@ export function DocRenderer({ content, onDelete }: DocRendererProps) {
         }
 
         return (
-          <div key={idx} className="relative group/block">
+          <div key={idx} className="group relative">
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(idx) }}
-              className="absolute -right-1 top-0.5 z-10 opacity-0 group-hover/block:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded bg-white hover:bg-red-50 border border-gray-200 hover:border-red-300 text-gray-300 hover:text-red-400 shadow-sm"
+              className="absolute right-1 top-0.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50"
               title="이 블록 삭제"
             >
-              <X className="size-3" />
+              <Trash2 className="size-3.5" />
             </button>
             {rendered}
           </div>
