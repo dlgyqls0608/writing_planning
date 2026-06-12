@@ -37,9 +37,13 @@ async function createForeshadow(data: {
   return res.json()
 }
 
-async function toggleForeshadow(id: string, is_resolved: boolean, resolved_episode?: number) {
+async function toggleForeshadow(id: string, is_resolved: boolean, resolved_episode?: number | null) {
   const body: Record<string, unknown> = { is_resolved }
-  if (resolved_episode !== undefined) body.resolved_episode = resolved_episode
+  if (is_resolved) {
+    if (resolved_episode !== undefined) body.resolved_episode = resolved_episode
+  } else {
+    body.resolved_episode = null
+  }
   const res = await fetch(`/api/foreshadows/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -155,7 +159,7 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   })
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, is_resolved, resolved_episode }: { id: string; is_resolved: boolean; resolved_episode?: number }) =>
+    mutationFn: ({ id, is_resolved, resolved_episode }: { id: string; is_resolved: boolean; resolved_episode?: number | null }) =>
       toggleForeshadow(id, is_resolved, resolved_episode),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['foreshadows', projectId] })
@@ -589,7 +593,7 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
             <ChevronDown className="size-3" />
           )}
         </button>
-        {checklistOpen && <SuccessChecklist genre={genre} />}
+        {checklistOpen && <SuccessChecklist genre={genre} projectId={projectId} />}
       </section>
     </div>
   )

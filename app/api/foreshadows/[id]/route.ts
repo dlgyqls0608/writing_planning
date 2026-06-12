@@ -10,9 +10,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
+  const allowed: Record<string, unknown> = {}
+  if (typeof body.is_resolved === 'boolean') allowed.is_resolved = body.is_resolved
+  if ('resolved_episode' in body) allowed.resolved_episode = body.resolved_episode ?? null
+  if ('planted_episode' in body) allowed.planted_episode = body.planted_episode ?? null
+  if (typeof body.content === 'string') allowed.content = body.content
+
   const { data, error } = await supabase
     .from('foreshadows')
-    .update(body)
+    .update(allowed)
     .eq('id', id)
     .select()
     .single()

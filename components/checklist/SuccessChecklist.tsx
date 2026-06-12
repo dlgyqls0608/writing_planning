@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface CheckItem {
   id: string
@@ -54,10 +54,25 @@ const GENRE_ITEMS: Record<string, CheckItem[]> = {
 
 interface SuccessChecklistProps {
   genre: string
+  projectId: string
 }
 
-export function SuccessChecklist({ genre }: SuccessChecklistProps) {
+export function SuccessChecklist({ genre, projectId }: SuccessChecklistProps) {
+  const storageKey = `checklist-${projectId}`
   const [checked, setChecked] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) setChecked(new Set(JSON.parse(saved) as string[]))
+    } catch {}
+  }, [storageKey])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify([...checked]))
+    } catch {}
+  }, [checked, storageKey])
 
   const genreItems = GENRE_ITEMS[genre] ?? []
   const items = [...COMMON, ...genreItems]
