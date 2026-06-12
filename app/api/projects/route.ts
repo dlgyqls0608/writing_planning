@@ -16,8 +16,25 @@ export async function GET() {
     .order('updated_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data?.length) return NextResponse.json([])
 
-  return NextResponse.json(data)
+  const projectIds = data.map((p) => p.id)
+  const { data: loglineDocs } = await supabase
+    .from('documents')
+    .select('project_id, content')
+    .eq('type', 'logline')
+    .in('project_id', projectIds)
+
+  const loglineMap = Object.fromEntries(
+    (loglineDocs ?? []).map((d) => [d.project_id, d.content])
+  )
+
+  const projects = data.map((p) => ({
+    ...p,
+    logline: loglineMap[p.id] ?? p.logline ?? null,
+  }))
+
+  return NextResponse.json(projects)
 }
 
 export async function POST(request: NextRequest) {
