@@ -44,6 +44,7 @@ export interface Character {
   description: string
   motivation: string
   arc: string
+  is_deceased: boolean
   created_at: string
 }
 

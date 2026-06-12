@@ -103,7 +103,6 @@ export function Editor({ project }: EditorProps) {
   const { data: foreshadows = [] } = useQuery({
     queryKey: ['foreshadows', project.id],
     queryFn: () => fetchForeshadows(project.id),
-    enabled: selectedView === 'foreshadow-tracker',
   })
 
   const abortRef = useRef<AbortController | null>(null)
@@ -254,7 +253,7 @@ export function Editor({ project }: EditorProps) {
           )}
         </div>
         <div className="flex-1 overflow-hidden">
-          {!charsLoading && <CharacterMindMap characters={characters} />}
+          {!charsLoading && <CharacterMindMap characters={characters} projectId={project.id} />}
         </div>
       </div>
     )

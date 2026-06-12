@@ -15,6 +15,12 @@ const CharacterMindMapInner = dynamic(
   }
 )
 
-export function CharacterMindMap({ characters }: { characters: Character[] }) {
-  return <CharacterMindMapInner characters={characters} />
+interface Props {
+  characters: Character[]
+  projectId: string
+}
+
+export function CharacterMindMap({ characters, projectId }: Props) {
+  const key = characters.map(c => c.id).join(',')
+  return <CharacterMindMapInner key={key} characters={characters} projectId={projectId} />
 }

@@ -76,6 +76,16 @@ async function deleteCharacter(id: string) {
   await fetch(`/api/characters/${id}`, { method: 'DELETE' })
 }
 
+async function toggleCharacterDeath(id: string, is_deceased: boolean) {
+  const res = await fetch(`/api/characters/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ is_deceased }),
+  })
+  if (!res.ok) throw new Error('사망 상태 업데이트 실패')
+  return res.json()
+}
+
 export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   const qc = useQueryClient()
   const storageKey = `notes-${projectId}`
@@ -157,6 +167,12 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
 
   const deleteCharMutation = useMutation({
     mutationFn: deleteCharacter,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['characters', projectId] }),
+  })
+
+  const toggleDeathMutation = useMutation({
+    mutationFn: ({ id, is_deceased }: { id: string; is_deceased: boolean }) =>
+      toggleCharacterDeath(id, is_deceased),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['characters', projectId] }),
   })
 
@@ -309,49 +325,48 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
         </div>
 
         {/* 복선 입력 */}
-        <div className="rounded-lg border border-red-100 p-2 space-y-1.5 bg-red-50/20">
+        <div className="rounded-lg border border-red-100 p-2 space-y-2 bg-red-50/20">
           <input
-            className="w-full text-xs border border-red-100 rounded px-2 py-1 outline-none focus:border-red-300 bg-white"
+            className="w-full text-xs border border-red-100 rounded px-2 py-1.5 outline-none focus:border-red-300 bg-white"
             placeholder="복선 내용... (예: 주인공이 숨긴 편지)"
             value={foreshadowInput}
             onChange={(e) => setForeshadowInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addForeshadow()}
             disabled={addMutation.isPending}
           />
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-1 flex-1">
-              <span className="text-[10px] text-gray-400 shrink-0 whitespace-nowrap">🌱 심는 화수</span>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-gray-500 font-medium">🌱 심는 화수</span>
               <input
                 type="number"
-                className="w-full text-xs border border-red-100 rounded px-1.5 py-0.5 outline-none focus:border-red-300 bg-white"
+                className="w-full text-sm border border-red-200 rounded px-2 py-1.5 outline-none focus:border-red-400 bg-white font-medium text-center"
                 placeholder="예: 3"
                 value={plantedEp}
                 onChange={(e) => setPlantedEp(e.target.value)}
                 min={1}
               />
             </div>
-            <span className="text-[10px] text-gray-300">→</span>
-            <div className="flex items-center gap-1 flex-1">
-              <span className="text-[10px] text-gray-400 shrink-0 whitespace-nowrap">📌 회수 화수</span>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-gray-500 font-medium">📌 회수 화수</span>
               <input
                 type="number"
-                className="w-full text-xs border border-red-100 rounded px-1.5 py-0.5 outline-none focus:border-red-300 bg-white"
+                className="w-full text-sm border border-red-200 rounded px-2 py-1.5 outline-none focus:border-red-400 bg-white font-medium text-center"
                 placeholder="예: 15"
                 value={resolvedEp}
                 onChange={(e) => setResolvedEp(e.target.value)}
                 min={1}
               />
             </div>
-            <button
-              onClick={addForeshadow}
-              disabled={addMutation.isPending || !foreshadowInput.trim()}
-              className="shrink-0 flex items-center gap-0.5 px-2 py-1 rounded bg-[#dc2626] text-white text-[10px] hover:bg-red-700 disabled:opacity-40 transition-colors"
-            >
-              <Plus className="size-3" />
-              추가
-            </button>
           </div>
-          <p className="text-[10px] text-gray-400">화수는 선택사항이에요 — 나중에 목록에서 추가할 수 있어요</p>
+          <button
+            onClick={addForeshadow}
+            disabled={addMutation.isPending || !foreshadowInput.trim()}
+            className="w-full flex items-center justify-center gap-1 py-1.5 rounded bg-[#dc2626] text-white text-xs font-medium hover:bg-red-700 disabled:opacity-40 transition-colors"
+          >
+            <Plus className="size-3.5" />
+            복선 추가
+          </button>
+          <p className="text-[10px] text-gray-400 text-center">화수는 선택사항 — 나중에 수정 가능</p>
         </div>
       </section>
 
@@ -372,24 +387,42 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
           <div className="space-y-2">
             <div className="space-y-1.5 max-h-48 overflow-y-auto">
               {characters.map((c) => (
-                <div key={c.id} className="flex items-start gap-1.5 bg-[#e0f2fe] rounded px-2 py-1.5 group">
+                <div
+                  key={c.id}
+                  className={`flex items-start gap-1.5 rounded px-2 py-1.5 group ${c.is_deceased ? 'bg-gray-100 border border-gray-200' : 'bg-[#e0f2fe]'}`}
+                >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold text-[#0c4a6e] truncate">{c.name}</span>
-                      <span className="text-[10px] text-[#0891b2] shrink-0">
-                        {c.role === 'protagonist' ? '주인공' : c.role === 'antagonist' ? '빌런' : '조연'}
+                      {c.is_deceased && <span className="text-[11px] shrink-0">💀</span>}
+                      <span className={`text-xs font-semibold truncate ${c.is_deceased ? 'text-gray-400 line-through' : 'text-[#0c4a6e]'}`}>
+                        {c.name}
+                      </span>
+                      <span className={`text-[10px] shrink-0 ${c.is_deceased ? 'text-gray-400' : 'text-[#0891b2]'}`}>
+                        {c.is_deceased ? '사망' : c.role === 'protagonist' ? '주인공' : c.role === 'antagonist' ? '빌런' : '조연'}
                       </span>
                     </div>
                     {c.description && (
-                      <p className="text-[10px] text-[#075985] mt-0.5 leading-snug line-clamp-2">{c.description}</p>
+                      <p className={`text-[10px] mt-0.5 leading-snug line-clamp-2 ${c.is_deceased ? 'text-gray-400' : 'text-[#075985]'}`}>
+                        {c.description}
+                      </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => deleteCharMutation.mutate(c.id)}
-                    className="opacity-0 group-hover:opacity-100 shrink-0 p-0.5 rounded hover:bg-blue-200 text-[#0891b2] transition-opacity"
-                  >
-                    <Trash2 className="size-3" />
-                  </button>
+                  <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => toggleDeathMutation.mutate({ id: c.id, is_deceased: !c.is_deceased })}
+                      className={`p-0.5 rounded text-[11px] ${c.is_deceased ? 'hover:bg-green-100 text-green-600' : 'hover:bg-gray-200 text-gray-500'}`}
+                      title={c.is_deceased ? '생존으로 되돌리기' : '사망 처리'}
+                    >
+                      {c.is_deceased ? '↩' : '💀'}
+                    </button>
+                    <button
+                      onClick={() => deleteCharMutation.mutate(c.id)}
+                      className="p-0.5 rounded hover:bg-red-100 text-red-400"
+                      title="삭제"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </div>
                 </div>
               ))}
               {characters.length === 0 && (
