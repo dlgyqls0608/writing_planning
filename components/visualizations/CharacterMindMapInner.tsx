@@ -7,13 +7,15 @@ import {
   type Node, type Edge, type NodeProps, type Connection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { X, UserPlus, Pencil } from 'lucide-react'
+import { X, UserPlus, Pencil, StickyNote } from 'lucide-react'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import type { Character, Document } from '@/types'
 
 // 모듈 레벨 ref — 페이지당 인스턴스 하나이므로 안전
 const deleteCallbackRef = { current: null as ((id: string) => void) | null }
 const editCallbackRef = { current: null as ((id: string, data: CharacterNodeData) => void) | null }
+const deleteNotepadRef = { current: null as ((id: string) => void) | null }
+const updateNotepadTextRef = { current: null as ((id: string, text: string) => void) | null }
 
 const ROLE_COLOR: Record<string, { bg: string; border: string; text: string; label: string; mini: string }> = {
   protagonist: { bg: '#ede9fe', border: '#4f46e5', text: '#3730a3', label: '주인공',   mini: '#4f46e5' },
@@ -102,7 +104,55 @@ function CharacterNode({ id, data }: NodeProps<Node<CharacterNodeData>>) {
   )
 }
 
-const NODE_TYPES = { character: CharacterNode }
+type NotepadNodeData = { text: string; [key: string]: unknown }
+
+function NotepadNode({ id, data }: NodeProps<Node<NotepadNodeData>>) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(String(data.text ?? ''))
+  const text = String(data.text ?? '')
+
+  return (
+    <div className="group relative bg-yellow-50 border-2 border-yellow-300 rounded-xl shadow-md p-2.5 min-w-[160px] max-w-[220px] cursor-grab active:cursor-grabbing">
+      <button
+        onClick={(e) => { e.stopPropagation(); deleteNotepadRef.current?.(id) }}
+        className="absolute -top-2 -right-2 size-4 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10 nodrag"
+        title="삭제"
+      >
+        <X className="size-2.5" />
+      </button>
+
+      <Handle type="target" position={Position.Top}    id="top"    className="!w-2.5 !h-2.5 !bg-yellow-400 !border-white !opacity-0 hover:!opacity-100 transition-opacity" />
+      <Handle type="target" position={Position.Left}   id="left"   className="!w-2.5 !h-2.5 !bg-yellow-400 !border-white !opacity-0 hover:!opacity-100 transition-opacity" />
+      <Handle type="source" position={Position.Bottom} id="bottom" className="!w-2.5 !h-2.5 !bg-yellow-400 !border-white !opacity-0 hover:!opacity-100 transition-opacity" />
+      <Handle type="source" position={Position.Right}  id="right"  className="!w-2.5 !h-2.5 !bg-yellow-400 !border-white !opacity-0 hover:!opacity-100 transition-opacity" />
+
+      {editing ? (
+        <textarea
+          className="w-full text-xs text-gray-700 bg-transparent outline-none resize-none nodrag nopan leading-relaxed"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            updateNotepadTextRef.current?.(id, draft)
+            setEditing(false)
+          }}
+          onKeyDown={(e) => { if (e.key === 'Escape') { updateNotepadTextRef.current?.(id, draft); setEditing(false) } }}
+          autoFocus
+          rows={5}
+        />
+      ) : (
+        <p
+          className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[60px]"
+          onDoubleClick={() => { setDraft(text); setEditing(true) }}
+        >
+          {text || <span className="text-yellow-500 italic text-[10px]">더블클릭으로 편집</span>}
+        </p>
+      )}
+      <p className="text-[9px] text-yellow-500 mt-1 text-right select-none">📝 메모</p>
+    </div>
+  )
+}
+
+const NODE_TYPES = { character: CharacterNode, notepad: NotepadNode }
 
 function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
   const protagonist = characters.find(c => c.role === 'protagonist')
@@ -211,6 +261,15 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
   }
 
   return { nodes, edges }
+}
+
+function loadNotepadNodes(projectId: string): Node[] {
+  try { return JSON.parse(localStorage.getItem(`nf-map-notepads-${projectId}`) ?? '[]') } catch { return [] }
+}
+
+function saveNotepadNodes(projectId: string, nodes: Node[]) {
+  const notepads = nodes.filter(n => n.type === 'notepad')
+  try { localStorage.setItem(`nf-map-notepads-${projectId}`, JSON.stringify(notepads)) } catch {}
 }
 
 function loadPositions(projectId: string): Record<string, { x: number; y: number }> {
@@ -362,6 +421,20 @@ export function CharacterMindMapInner({
   deleteCallbackRef.current = (id: string) => {
     if (window.confirm('이 인물을 삭제할까요?')) deleteCharMutation.mutate(id)
   }
+  deleteNotepadRef.current = (id: string) => {
+    setNodes(nds => {
+      const next = nds.filter(n => n.id !== id)
+      saveNotepadNodes(projectId, next)
+      return next
+    })
+  }
+  updateNotepadTextRef.current = (id: string, text: string) => {
+    setNodes(nds => {
+      const next = nds.map(n => n.id === id ? { ...n, data: { ...n.data, text } } : n)
+      saveNotepadNodes(projectId, next)
+      return next
+    })
+  }
   editCallbackRef.current = (id: string, nodeData: CharacterNodeData) => {
     const role = String(nodeData.role ?? 'supporting')
     const isCustom = !PRESET_ROLES.includes(role)
@@ -381,11 +454,12 @@ export function CharacterMindMapInner({
   const initialData = useMemo(() => {
     const { nodes: autoNodes, edges: autoEdges } = buildGraph(characters)
     const savedPos = loadPositions(projectId)
-    const nodes = autoNodes.map(n =>
+    const charNodes = autoNodes.map(n =>
       savedPos[n.id] ? { ...n, position: savedPos[n.id] } : n
     )
+    const notepadNodes = loadNotepadNodes(projectId)
     const customEdges = loadCustomEdges(projectId)
-    return { nodes, edges: [...autoEdges, ...customEdges] }
+    return { nodes: [...charNodes, ...notepadNodes], edges: [...autoEdges, ...customEdges] }
   }, [characters, projectId])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialData.nodes)
@@ -416,6 +490,35 @@ export function CharacterMindMapInner({
     [setEdges, projectId],
   )
 
+  const onEdgeContextMenu = useCallback(
+    (e: React.MouseEvent, edge: Edge) => {
+      e.preventDefault()
+      if (window.confirm('이 연결선을 삭제할까요?')) {
+        setEdges(eds => {
+          const next = eds.filter(e2 => e2.id !== edge.id)
+          saveCustomEdges(projectId, next)
+          return next
+        })
+      }
+    },
+    [setEdges, projectId],
+  )
+
+  function addNotepad() {
+    const id = `notepad-${Date.now()}`
+    const newNode: Node = {
+      id,
+      type: 'notepad',
+      position: { x: 100 + Math.random() * 200, y: 100 + Math.random() * 150 },
+      data: { text: '' },
+    }
+    setNodes(nds => {
+      const next = [...nds, newNode]
+      saveNotepadNodes(projectId, next)
+      return next
+    })
+  }
+
   const onEdgeDoubleClick = useCallback(
     (_: React.MouseEvent, edge: Edge) => {
       const label = window.prompt('관계 이름 수정:', String(edge.label ?? ''))
@@ -431,6 +534,7 @@ export function CharacterMindMapInner({
 
   const onNodeDragStop = useCallback(() => {
     savePositions(projectId, nodes)
+    saveNotepadNodes(projectId, nodes)
   }, [nodes, projectId])
 
   // ── 패널 UI ───────────────────────────────────────────────────────────────
@@ -602,6 +706,13 @@ export function CharacterMindMapInner({
           아래 버튼으로 바로 추가할 수 있어요.
         </p>
         {addCharPanel}
+        <button
+          onClick={addNotepad}
+          className="absolute bottom-4 left-4 z-10 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-400 text-yellow-900 text-xs font-medium shadow-lg hover:bg-yellow-500 transition-colors"
+        >
+          <StickyNote className="size-3.5" />
+          메모 추가
+        </button>
       </div>
     )
   }
@@ -612,12 +723,23 @@ export function CharacterMindMapInner({
       <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-full px-3 py-1 text-[10px] text-gray-500 pointer-events-none shadow-sm">
         <span>드래그로 이동</span>
         <span className="w-px h-3 bg-gray-300" />
-        <span>핑크 버튼 클릭 → 편집</span>
+        <span>핑크 버튼 → 편집</span>
         <span className="w-px h-3 bg-gray-300" />
-        <span>가장자리 드래그 → 관계 연결</span>
+        <span>가장자리 드래그 → 연결</span>
         <span className="w-px h-3 bg-gray-300" />
-        <span>연결선 더블클릭 → 라벨 수정</span>
+        <span>연결선 더블클릭 → 라벨</span>
+        <span className="w-px h-3 bg-gray-300" />
+        <span>연결선 우클릭 → 삭제</span>
       </div>
+
+      {/* 메모 추가 버튼 */}
+      <button
+        onClick={addNotepad}
+        className="absolute bottom-4 left-4 z-10 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-400 text-yellow-900 text-xs font-medium shadow-lg hover:bg-yellow-500 transition-colors"
+      >
+        <StickyNote className="size-3.5" />
+        메모 추가
+      </button>
 
       {editPanel}
       {addCharPanel}
@@ -629,6 +751,7 @@ export function CharacterMindMapInner({
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onEdgeDoubleClick={onEdgeDoubleClick}
+        onEdgeContextMenu={onEdgeContextMenu}
         onNodeDragStop={onNodeDragStop}
         nodeTypes={NODE_TYPES}
         fitView

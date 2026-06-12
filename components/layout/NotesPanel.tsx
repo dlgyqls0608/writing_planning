@@ -79,18 +79,6 @@ async function fetchCharacters(projectId: string): Promise<Character[]> {
   return res.json()
 }
 
-async function createCharacter(data: {
-  project_id: string; name: string; role: string; description: string
-}) {
-  const res = await fetch('/api/characters', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
-  if (!res.ok) throw new Error('인물 저장 실패')
-  return res.json()
-}
-
 async function updateCharacter(id: string, data: { name?: string; role?: string; description?: string }) {
   const res = await fetch(`/api/characters/${id}`, {
     method: 'PATCH',
@@ -143,13 +131,6 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
 
   const [checklistOpen, setChecklistOpen] = useState(false)
   const [charactersOpen, setCharactersOpen] = useState(false)
-  const [charName, setCharName] = useState('')
-  const [charRole, setCharRole] = useState<string>('supporting')
-  const [charCustomRole, setCharCustomRole] = useState('')
-  const [charDesc, setCharDesc] = useState('')
-  const [showCharForm, setShowCharForm] = useState(false)
-  const charNameComposing = useRef(false)
-
   // 편집 상태
   const [editingCharId, setEditingCharId] = useState<string | null>(null)
   const [editCharName, setEditCharName] = useState('')
@@ -224,15 +205,6 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
     queryKey: ['characters', projectId],
     queryFn: () => fetchCharacters(projectId),
     enabled: charactersOpen,
-  })
-
-  const addCharMutation = useMutation({
-    mutationFn: createCharacter,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['characters', projectId] })
-      setCharName(''); setCharDesc(''); setShowCharForm(false); setCharError(null)
-    },
-    onError: (e: Error) => setCharError(e.message),
   })
 
   const deleteCharMutation = useMutation({
@@ -773,75 +745,6 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
               </div>
             )}
 
-            {/* 인물 추가 폼 */}
-            {showCharForm ? (
-              <div className="space-y-1.5 border border-blue-100 rounded-lg p-2">
-                <input
-                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
-                  placeholder="인물 이름 *"
-                  value={charName}
-                  onChange={(e) => { if (!charNameComposing.current) setCharName(e.target.value) }}
-                  onCompositionStart={() => { charNameComposing.current = true }}
-                  onCompositionEnd={(e) => { charNameComposing.current = false; setCharName(e.currentTarget.value) }}
-                />
-                <select
-                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
-                  value={charRole}
-                  onChange={(e) => setCharRole(e.target.value)}
-                >
-                  <option value="protagonist">주인공</option>
-                  <option value="antagonist">빌런/적대자</option>
-                  <option value="supporting">조연</option>
-                  <option value="helper">조력자</option>
-                  <option value="extra">엑스트라</option>
-                  <option value="__custom__">직접 입력...</option>
-                </select>
-                {charRole === '__custom__' && (
-                  <input
-                    className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
-                    placeholder="역할 이름 입력"
-                    value={charCustomRole}
-                    onChange={(e) => setCharCustomRole(e.target.value)}
-                  />
-                )}
-                <textarea
-                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2] resize-none"
-                  placeholder="인물 설명 (선택)"
-                  rows={2}
-                  value={charDesc}
-                  onChange={(e) => setCharDesc(e.target.value)}
-                />
-                {charError && <p className="text-[10px] text-red-500">{charError}</p>}
-                <div className="flex gap-1 justify-end">
-                  <button
-                    onClick={() => { setShowCharForm(false); setCharName(''); setCharDesc(''); setCharCustomRole(''); setCharRole('supporting'); setCharError(null) }}
-                    className="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100"
-                  >
-                    취소
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!charName.trim()) return
-                      const actualRole = charRole === '__custom__' ? charCustomRole.trim() : charRole
-                      if (!actualRole) return
-                      addCharMutation.mutate({ project_id: projectId, name: charName.trim(), role: actualRole, description: charDesc.trim() })
-                    }}
-                    disabled={!charName.trim() || addCharMutation.isPending || (charRole === '__custom__' && !charCustomRole.trim())}
-                    className="text-xs px-2 py-1 rounded bg-[#0891b2] text-white disabled:opacity-50"
-                  >
-                    {addCharMutation.isPending ? '추가 중...' : '추가'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowCharForm(true)}
-                className="w-full flex items-center gap-1.5 text-xs text-[#0891b2] hover:bg-blue-50 rounded px-2 py-1.5 transition-colors"
-              >
-                <Plus className="size-3.5" />
-                인물 추가
-              </button>
-            )}
           </div>
         )}
       </section>
