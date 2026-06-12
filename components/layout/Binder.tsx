@@ -323,11 +323,16 @@ export function Binder({ project }: BinderProps) {
       if (doc) { addDocument(doc); selectDocument(doc.id, 'character-card') }
 
       // 인물 관계도 자동 연동
-      fetch('/api/characters', {
+      const charRes = await fetch('/api/characters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project_id: project.id, name: title, role: 'supporting', description: '' }),
-      }).then(() => qc.invalidateQueries({ queryKey: ['characters', project.id] })).catch(() => {})
+      })
+      if (!charRes.ok) {
+        const json = await charRes.json().catch(() => ({}))
+        throw new Error(json.error ?? '인물 데이터 저장에 실패했습니다.')
+      }
+      qc.invalidateQueries({ queryKey: ['characters', project.id] })
 
       setNewCharTitle('')
       setAddingChar(false)

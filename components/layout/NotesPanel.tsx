@@ -144,7 +144,8 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   const [checklistOpen, setChecklistOpen] = useState(false)
   const [charactersOpen, setCharactersOpen] = useState(false)
   const [charName, setCharName] = useState('')
-  const [charRole, setCharRole] = useState<'protagonist' | 'antagonist' | 'supporting'>('supporting')
+  const [charRole, setCharRole] = useState<string>('supporting')
+  const [charCustomRole, setCharCustomRole] = useState('')
   const [charDesc, setCharDesc] = useState('')
   const [showCharForm, setShowCharForm] = useState(false)
   const charNameComposing = useRef(false)
@@ -152,7 +153,8 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
   // 편집 상태
   const [editingCharId, setEditingCharId] = useState<string | null>(null)
   const [editCharName, setEditCharName] = useState('')
-  const [editCharRole, setEditCharRole] = useState<'protagonist' | 'antagonist' | 'supporting'>('supporting')
+  const [editCharRole, setEditCharRole] = useState<string>('supporting')
+  const [editCharCustomRole, setEditCharCustomRole] = useState('')
   const [editCharDesc, setEditCharDesc] = useState('')
   const editCharNameComposing = useRef(false)
 
@@ -586,12 +588,23 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                         <select
                           className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
                           value={editCharRole}
-                          onChange={(e) => setEditCharRole(e.target.value as typeof editCharRole)}
+                          onChange={(e) => setEditCharRole(e.target.value)}
                         >
                           <option value="protagonist">주인공</option>
                           <option value="antagonist">빌런/적대자</option>
                           <option value="supporting">조연</option>
+                          <option value="helper">조력자</option>
+                          <option value="extra">엑스트라</option>
+                          <option value="__custom__">직접 입력...</option>
                         </select>
+                        {editCharRole === '__custom__' && (
+                          <input
+                            className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
+                            placeholder="역할 이름 입력"
+                            value={editCharCustomRole}
+                            onChange={(e) => setEditCharCustomRole(e.target.value)}
+                          />
+                        )}
                         <textarea
                           className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2] resize-none"
                           placeholder="인물 설명 (선택)"
@@ -612,9 +625,11 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                           <button
                             onClick={() => {
                               if (!editCharName.trim()) return
-                              updateCharMutation.mutate({ id: c.id, name: editCharName.trim(), role: editCharRole, description: editCharDesc.trim() })
+                              const actualRole = editCharRole === '__custom__' ? editCharCustomRole.trim() : editCharRole
+                              if (!actualRole) return
+                              updateCharMutation.mutate({ id: c.id, name: editCharName.trim(), role: actualRole, description: editCharDesc.trim() })
                             }}
-                            disabled={!editCharName.trim() || updateCharMutation.isPending}
+                            disabled={!editCharName.trim() || updateCharMutation.isPending || (editCharRole === '__custom__' && !editCharCustomRole.trim())}
                             className="text-xs px-2 py-1 rounded bg-[#0891b2] text-white disabled:opacity-50"
                           >
                             {updateCharMutation.isPending ? '저장 중...' : '저장'}
@@ -638,9 +653,17 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                                   ? 'bg-blue-100 text-blue-700'
                                   : c.role === 'antagonist'
                                   ? 'bg-red-100 text-red-700'
+                                  : c.role === 'helper'
+                                  ? 'bg-green-100 text-green-700'
+                                  : c.role === 'extra'
+                                  ? 'bg-yellow-100 text-yellow-700'
                                   : 'bg-gray-100 text-gray-600'
                               }`}>
-                                {c.role === 'protagonist' ? '주인공' : c.role === 'antagonist' ? '빌런' : '조연'}
+                                {c.role === 'protagonist' ? '주인공'
+                                  : c.role === 'antagonist' ? '빌런'
+                                  : c.role === 'helper' ? '조력자'
+                                  : c.role === 'extra' ? '엑스트라'
+                                  : c.role}
                               </span>
                             </div>
                             {c.description && (
@@ -661,7 +684,10 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                               onClick={() => {
                                 setEditingCharId(c.id)
                                 setEditCharName(c.name)
-                                setEditCharRole(c.role)
+                                const presets = ['protagonist','antagonist','supporting','helper','extra']
+                                const isCustom = !presets.includes(c.role)
+                                setEditCharRole(isCustom ? '__custom__' : c.role)
+                                setEditCharCustomRole(isCustom ? c.role : '')
                                 setEditCharDesc(c.description ?? '')
                                 setCharError(null)
                               }}
@@ -761,12 +787,23 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                 <select
                   className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
                   value={charRole}
-                  onChange={(e) => setCharRole(e.target.value as typeof charRole)}
+                  onChange={(e) => setCharRole(e.target.value)}
                 >
                   <option value="protagonist">주인공</option>
                   <option value="antagonist">빌런/적대자</option>
                   <option value="supporting">조연</option>
+                  <option value="helper">조력자</option>
+                  <option value="extra">엑스트라</option>
+                  <option value="__custom__">직접 입력...</option>
                 </select>
+                {charRole === '__custom__' && (
+                  <input
+                    className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2]"
+                    placeholder="역할 이름 입력"
+                    value={charCustomRole}
+                    onChange={(e) => setCharCustomRole(e.target.value)}
+                  />
+                )}
                 <textarea
                   className="w-full text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-[#0891b2] resize-none"
                   placeholder="인물 설명 (선택)"
@@ -777,7 +814,7 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                 {charError && <p className="text-[10px] text-red-500">{charError}</p>}
                 <div className="flex gap-1 justify-end">
                   <button
-                    onClick={() => { setShowCharForm(false); setCharName(''); setCharDesc(''); setCharError(null) }}
+                    onClick={() => { setShowCharForm(false); setCharName(''); setCharDesc(''); setCharCustomRole(''); setCharRole('supporting'); setCharError(null) }}
                     className="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100"
                   >
                     취소
@@ -785,9 +822,11 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                   <button
                     onClick={() => {
                       if (!charName.trim()) return
-                      addCharMutation.mutate({ project_id: projectId, name: charName.trim(), role: charRole, description: charDesc.trim() })
+                      const actualRole = charRole === '__custom__' ? charCustomRole.trim() : charRole
+                      if (!actualRole) return
+                      addCharMutation.mutate({ project_id: projectId, name: charName.trim(), role: actualRole, description: charDesc.trim() })
                     }}
-                    disabled={!charName.trim() || addCharMutation.isPending}
+                    disabled={!charName.trim() || addCharMutation.isPending || (charRole === '__custom__' && !charCustomRole.trim())}
                     className="text-xs px-2 py-1 rounded bg-[#0891b2] text-white disabled:opacity-50"
                   >
                     {addCharMutation.isPending ? '추가 중...' : '추가'}

@@ -39,7 +39,7 @@ export interface Character {
   id: string
   project_id: string
   name: string
-  role: 'protagonist' | 'antagonist' | 'supporting'
+  role: string
   archetype: string
   description: string
   motivation: string

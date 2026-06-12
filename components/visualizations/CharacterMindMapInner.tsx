@@ -15,11 +15,17 @@ import type { Character, Document } from '@/types'
 const deleteCallbackRef = { current: null as ((id: string) => void) | null }
 const editCallbackRef = { current: null as ((id: string, data: CharacterNodeData) => void) | null }
 
-const ROLE_COLOR = {
-  protagonist: { bg: '#ede9fe', border: '#4f46e5', text: '#3730a3', label: '주인공', mini: '#4f46e5' },
-  antagonist:  { bg: '#fee2e2', border: '#dc2626', text: '#991b1b', label: '빌런',   mini: '#dc2626' },
-  supporting:  { bg: '#e0f2fe', border: '#0891b2', text: '#0c4a6e', label: '조연',   mini: '#0891b2' },
-} as const
+const ROLE_COLOR: Record<string, { bg: string; border: string; text: string; label: string; mini: string }> = {
+  protagonist: { bg: '#ede9fe', border: '#4f46e5', text: '#3730a3', label: '주인공',   mini: '#4f46e5' },
+  antagonist:  { bg: '#fee2e2', border: '#dc2626', text: '#991b1b', label: '빌런',     mini: '#dc2626' },
+  supporting:  { bg: '#e0f2fe', border: '#0891b2', text: '#0c4a6e', label: '조연',     mini: '#0891b2' },
+  helper:      { bg: '#d1fae5', border: '#059669', text: '#065f46', label: '조력자',   mini: '#059669' },
+  extra:       { bg: '#fef3c7', border: '#d97706', text: '#92400e', label: '엑스트라', mini: '#d97706' },
+}
+
+function getRoleStyle(role: string) {
+  return ROLE_COLOR[role] ?? { bg: '#f3f4f6', border: '#6b7280', text: '#374151', label: role, mini: '#6b7280' }
+}
 
 type CharacterNodeData = {
   name: string
@@ -31,7 +37,7 @@ type CharacterNodeData = {
 }
 
 function CharacterNode({ id, data }: NodeProps<Node<CharacterNodeData>>) {
-  const style = ROLE_COLOR[data.role as keyof typeof ROLE_COLOR] ?? ROLE_COLOR.supporting
+  const style = getRoleStyle(data.role)
   const dead = data.isDeceased
 
   function handleDelete(e: React.MouseEvent) {
@@ -101,7 +107,7 @@ const NODE_TYPES = { character: CharacterNode }
 function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
   const protagonist = characters.find(c => c.role === 'protagonist')
   const antagonists = characters.filter(c => c.role === 'antagonist')
-  const supporting  = characters.filter(c => c.role === 'supporting')
+  const arcChars    = characters.filter(c => c.role !== 'protagonist' && c.role !== 'antagonist')
 
   const nodes: Node[] = []
   const edges: Edge[] = []
@@ -148,8 +154,8 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
     }
   })
 
-  supporting.forEach((c, i) => {
-    const total = supporting.length
+  arcChars.forEach((c, i) => {
+    const total = arcChars.length
     const frac  = total === 1 ? 0.5 : i / (total - 1)
     const angle = Math.PI + frac * Math.PI
     const R = 210
@@ -162,17 +168,31 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
       data: { name: c.name, role: c.role, description: c.description, memo: c.memo, isDeceased: c.is_deceased },
     })
     if (protagonist) {
-      edges.push({
-        id: `auto-${protagonist.id}-${c.id}`,
-        source: protagonist.id,
-        target: c.id,
-        label: '동료',
-        style: { stroke: '#0891b2' },
-        labelStyle: { fontSize: 10, fill: '#0891b2', fontWeight: 600 },
-        labelBgStyle: { fill: '#f0f9ff', fillOpacity: 0.9 },
-        labelBgPadding: [3, 5] as [number, number],
-        labelBgBorderRadius: 4,
-      })
+      if (c.role === 'supporting') {
+        edges.push({
+          id: `auto-${protagonist.id}-${c.id}`,
+          source: protagonist.id,
+          target: c.id,
+          label: '동료',
+          style: { stroke: '#0891b2' },
+          labelStyle: { fontSize: 10, fill: '#0891b2', fontWeight: 600 },
+          labelBgStyle: { fill: '#f0f9ff', fillOpacity: 0.9 },
+          labelBgPadding: [3, 5] as [number, number],
+          labelBgBorderRadius: 4,
+        })
+      } else if (c.role === 'helper') {
+        edges.push({
+          id: `auto-${protagonist.id}-${c.id}`,
+          source: protagonist.id,
+          target: c.id,
+          label: '조력',
+          style: { stroke: '#059669' },
+          labelStyle: { fontSize: 10, fill: '#059669', fontWeight: 600 },
+          labelBgStyle: { fill: '#f0fdf4', fillOpacity: 0.9 },
+          labelBgPadding: [3, 5] as [number, number],
+          labelBgBorderRadius: 4,
+        })
+      }
     }
   })
 
@@ -212,9 +232,11 @@ function saveCustomEdges(projectId: string, edges: Edge[]) {
   try { localStorage.setItem(`nf-map-edges-${projectId}`, JSON.stringify(custom)) } catch {}
 }
 
+const PRESET_ROLES = ['protagonist', 'antagonist', 'supporting', 'helper', 'extra']
+
 type EditData = {
   name: string
-  role: 'protagonist' | 'antagonist' | 'supporting'
+  role: string
   description: string
   memo: string
 }
@@ -239,13 +261,15 @@ export function CharacterMindMapInner({
   // 추가 폼 상태
   const [showAddForm, setShowAddForm] = useState(false)
   const [addName, setAddName] = useState('')
-  const [addRole, setAddRole] = useState<'protagonist' | 'antagonist' | 'supporting'>('supporting')
+  const [addRole, setAddRole] = useState<string>('supporting')
+  const [addCustomRole, setAddCustomRole] = useState('')
   const [addDesc, setAddDesc] = useState('')
   const [addMemo, setAddMemo] = useState('')
 
   // 편집 패널 상태
   const [editingCharId, setEditingCharId] = useState<string | null>(null)
   const [editData, setEditData] = useState<EditData | null>(null)
+  const [editCustomRole, setEditCustomRole] = useState('')
 
   // ── 뮤테이션 ──────────────────────────────────────────────────────────────
 
@@ -291,7 +315,7 @@ export function CharacterMindMapInner({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['characters', projectId] })
-      setAddName(''); setAddDesc(''); setAddMemo(''); setShowAddForm(false)
+      setAddName(''); setAddDesc(''); setAddMemo(''); setAddCustomRole(''); setAddRole('supporting'); setShowAddForm(false)
     },
   })
 
@@ -339,13 +363,17 @@ export function CharacterMindMapInner({
     if (window.confirm('이 인물을 삭제할까요?')) deleteCharMutation.mutate(id)
   }
   editCallbackRef.current = (id: string, nodeData: CharacterNodeData) => {
+    const role = String(nodeData.role ?? 'supporting')
+    const isCustom = !PRESET_ROLES.includes(role)
     setEditingCharId(id)
     setEditData({
       name: nodeData.name,
-      role: (nodeData.role as EditData['role']) ?? 'supporting',
+      role: isCustom ? '__custom__' : role,
       description: String(nodeData.description ?? ''),
       memo: String(nodeData.memo ?? ''),
     })
+    if (isCustom) setEditCustomRole(role)
+    else setEditCustomRole('')
   }
 
   // ── ReactFlow 상태 ────────────────────────────────────────────────────────
@@ -429,12 +457,23 @@ export function CharacterMindMapInner({
       <select
         className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
         value={editData.role}
-        onChange={(e) => setEditData(prev => prev ? { ...prev, role: e.target.value as EditData['role'] } : null)}
+        onChange={(e) => setEditData(prev => prev ? { ...prev, role: e.target.value } : null)}
       >
         <option value="protagonist">주인공</option>
         <option value="antagonist">빌런/적대자</option>
         <option value="supporting">조연</option>
+        <option value="helper">조력자</option>
+        <option value="extra">엑스트라</option>
+        <option value="__custom__">직접 입력...</option>
       </select>
+      {editData.role === '__custom__' && (
+        <input
+          className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
+          placeholder="역할 이름 입력 (예: 내레이터, 조언자)"
+          value={editCustomRole}
+          onChange={(e) => setEditCustomRole(e.target.value)}
+        />
+      )}
       <input
         className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
         placeholder="설명 (선택)"
@@ -456,9 +495,11 @@ export function CharacterMindMapInner({
         <button
           onClick={() => {
             if (!editData.name.trim() || !editingCharId) return
-            saveEditMutation.mutate({ id: editingCharId, ...editData, name: editData.name.trim() })
+            const actualRole = editData.role === '__custom__' ? editCustomRole.trim() : editData.role
+            if (!actualRole) return
+            saveEditMutation.mutate({ id: editingCharId, ...editData, role: actualRole, name: editData.name.trim() })
           }}
-          disabled={!editData.name.trim() || saveEditMutation.isPending}
+          disabled={!editData.name.trim() || saveEditMutation.isPending || (editData.role === '__custom__' && !editCustomRole.trim())}
           className="text-xs px-2 py-1 rounded bg-[#db2777] text-white disabled:opacity-50"
         >
           {saveEditMutation.isPending ? '저장 중...' : '저장'}
@@ -490,12 +531,23 @@ export function CharacterMindMapInner({
       <select
         className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
         value={addRole}
-        onChange={(e) => setAddRole(e.target.value as typeof addRole)}
+        onChange={(e) => setAddRole(e.target.value)}
       >
         <option value="protagonist">주인공</option>
         <option value="antagonist">빌런/적대자</option>
         <option value="supporting">조연</option>
+        <option value="helper">조력자</option>
+        <option value="extra">엑스트라</option>
+        <option value="__custom__">직접 입력...</option>
       </select>
+      {addRole === '__custom__' && (
+        <input
+          className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
+          placeholder="역할 이름 입력 (예: 내레이터, 조언자)"
+          value={addCustomRole}
+          onChange={(e) => setAddCustomRole(e.target.value)}
+        />
+      )}
       <input
         className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
         placeholder="설명 (선택)"
@@ -511,15 +563,17 @@ export function CharacterMindMapInner({
       />
       <div className="flex gap-1.5 justify-end">
         <button
-          onClick={() => { setShowAddForm(false); setAddName(''); setAddDesc(''); setAddMemo('') }}
+          onClick={() => { setShowAddForm(false); setAddName(''); setAddDesc(''); setAddMemo(''); setAddCustomRole('') }}
           className="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100"
         >취소</button>
         <button
           onClick={() => {
             if (!addName.trim()) return
-            addCharMutation.mutate({ name: addName.trim(), role: addRole, description: addDesc.trim(), memo: addMemo.trim() })
+            const actualRole = addRole === '__custom__' ? addCustomRole.trim() : addRole
+            if (!actualRole) return
+            addCharMutation.mutate({ name: addName.trim(), role: actualRole, description: addDesc.trim(), memo: addMemo.trim() })
           }}
-          disabled={!addName.trim() || addCharMutation.isPending}
+          disabled={!addName.trim() || addCharMutation.isPending || (addRole === '__custom__' && !addCustomRole.trim())}
           className="text-xs px-2 py-1 rounded bg-[#db2777] text-white disabled:opacity-50"
         >
           {addCharMutation.isPending ? '추가 중...' : '추가'}
