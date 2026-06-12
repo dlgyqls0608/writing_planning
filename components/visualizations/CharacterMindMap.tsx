@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import type { Character } from '@/types'
+import type { Character, Document } from '@/types'
 
 const CharacterMindMapInner = dynamic(
   () => import('./CharacterMindMapInner').then(m => m.CharacterMindMapInner),
@@ -18,9 +18,23 @@ const CharacterMindMapInner = dynamic(
 interface Props {
   characters: Character[]
   projectId: string
+  charDocs?: Document[]
+  onDocumentCreated?: (doc: Document) => void
+  onDocumentDeleted?: (docId: string) => void
+  onDocumentUpdated?: (docId: string, updates: Partial<Document>) => void
 }
 
-export function CharacterMindMap({ characters, projectId }: Props) {
+export function CharacterMindMap({ characters, projectId, charDocs, onDocumentCreated, onDocumentDeleted, onDocumentUpdated }: Props) {
   const key = characters.map(c => c.id).join(',')
-  return <CharacterMindMapInner key={key} characters={characters} projectId={projectId} />
+  return (
+    <CharacterMindMapInner
+      key={key}
+      characters={characters}
+      projectId={projectId}
+      charDocs={charDocs}
+      onDocumentCreated={onDocumentCreated}
+      onDocumentDeleted={onDocumentDeleted}
+      onDocumentUpdated={onDocumentUpdated}
+    />
+  )
 }

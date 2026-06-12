@@ -85,7 +85,7 @@ async function fetchForeshadows(projectId: string): Promise<Foreshadow[]> {
 }
 
 export function Editor({ project }: EditorProps) {
-  const { selectedDocumentId, selectedDocumentType, selectedView, documents, updateDocument } = useProjectStore()
+  const { selectedDocumentId, selectedDocumentType, selectedView, documents, updateDocument, addDocument, removeDocument } = useProjectStore()
 
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamedText, setStreamedText] = useState('')
@@ -102,6 +102,8 @@ export function Editor({ project }: EditorProps) {
   const [titleDraft, setTitleDraft] = useState('')
   // 변경 비교: 재생성 전 원본 내용 보관
   const [prevContent, setPrevContent] = useState<string | null>(null)
+
+  const charDocs = documents.filter(d => d.type === 'character-card')
 
   const { data: characters = [], isLoading: charsLoading } = useQuery({
     queryKey: ['characters', project.id],
@@ -310,7 +312,16 @@ export function Editor({ project }: EditorProps) {
           )}
         </div>
         <div className="flex-1 overflow-hidden">
-          {!charsLoading && <CharacterMindMap characters={characters} projectId={project.id} />}
+          {!charsLoading && (
+            <CharacterMindMap
+              characters={characters}
+              projectId={project.id}
+              charDocs={charDocs}
+              onDocumentCreated={(doc) => addDocument(doc)}
+              onDocumentDeleted={(id) => removeDocument(id)}
+              onDocumentUpdated={(id, updates) => updateDocument(id, updates)}
+            />
+          )}
         </div>
       </div>
     )

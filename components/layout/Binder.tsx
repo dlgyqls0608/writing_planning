@@ -298,8 +298,18 @@ export function Binder({ project }: BinderProps) {
   // ── 문서 삭제 ─────────────────────────────────────────────────────────────
   async function handleDeleteDoc(id: string, label: string) {
     if (!window.confirm(`'${label}'을(를) 삭제할까요?`)) return
+    const doc = documents.find(d => d.id === id)
     removeDocument(id)
     await fetch(`/api/documents/${id}`, { method: 'DELETE' })
+
+    // character-card 삭제 시 연결된 캐릭터 레코드도 함께 삭제
+    if (doc?.type === 'character-card') {
+      const matchingChar = characters.find(c => c.name === doc.title)
+      if (matchingChar) {
+        await fetch(`/api/characters/${matchingChar.id}`, { method: 'DELETE' })
+        qc.invalidateQueries({ queryKey: ['characters', project.id] })
+      }
+    }
   }
 
   // ── 캐릭터 카드 추가 ──────────────────────────────────────────────────────

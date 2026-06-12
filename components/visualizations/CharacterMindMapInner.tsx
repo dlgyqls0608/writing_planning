@@ -7,11 +7,13 @@ import {
   type Node, type Edge, type NodeProps, type Connection,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { X, UserPlus } from 'lucide-react'
+import { X, UserPlus, Pencil } from 'lucide-react'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
-import type { Character } from '@/types'
+import type { Character, Document } from '@/types'
 
+// 모듈 레벨 ref — 페이지당 인스턴스 하나이므로 안전
 const deleteCallbackRef = { current: null as ((id: string) => void) | null }
+const editCallbackRef = { current: null as ((id: string, data: CharacterNodeData) => void) | null }
 
 const ROLE_COLOR = {
   protagonist: { bg: '#ede9fe', border: '#4f46e5', text: '#3730a3', label: '주인공', mini: '#4f46e5' },
@@ -23,6 +25,7 @@ type CharacterNodeData = {
   name: string
   role: string
   description?: string
+  memo?: string
   isDeceased?: boolean
   [key: string]: unknown
 }
@@ -36,6 +39,11 @@ function CharacterNode({ id, data }: NodeProps<Node<CharacterNodeData>>) {
     deleteCallbackRef.current?.(id)
   }
 
+  function handleEdit(e: React.MouseEvent) {
+    e.stopPropagation()
+    editCallbackRef.current?.(id, data)
+  }
+
   return (
     <div
       className="group relative px-3 py-2 rounded-xl border-2 shadow-sm text-center min-w-[100px] max-w-[140px] cursor-grab active:cursor-grabbing"
@@ -45,6 +53,7 @@ function CharacterNode({ id, data }: NodeProps<Node<CharacterNodeData>>) {
         opacity: dead ? 0.65 : 1,
       }}
     >
+      {/* 삭제 버튼 */}
       <button
         onClick={handleDelete}
         className="absolute -top-2 -right-2 size-4 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10 nodrag"
@@ -52,6 +61,15 @@ function CharacterNode({ id, data }: NodeProps<Node<CharacterNodeData>>) {
       >
         <X className="size-2.5" />
       </button>
+      {/* 편집 버튼 */}
+      <button
+        onClick={handleEdit}
+        className="absolute -top-2 -left-2 size-4 rounded-full bg-[#db2777] text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10 nodrag"
+        title="편집"
+      >
+        <Pencil className="size-2.5" />
+      </button>
+
       {/* 4방향 연결 핸들 — 호버 시 표시 */}
       <Handle type="target" position={Position.Top}    id="top"    className="!w-2.5 !h-2.5 !bg-gray-400 !border-white !opacity-0 hover:!opacity-100 transition-opacity" />
       <Handle type="target" position={Position.Left}   id="left"   className="!w-2.5 !h-2.5 !bg-gray-400 !border-white !opacity-0 hover:!opacity-100 transition-opacity" />
@@ -67,6 +85,11 @@ function CharacterNode({ id, data }: NodeProps<Node<CharacterNodeData>>) {
       {data.description && (
         <p className="text-[9px] mt-1 text-gray-500 leading-tight line-clamp-2">
           {data.description}
+        </p>
+      )}
+      {data.memo && (
+        <p className="text-[9px] mt-1 text-amber-600 leading-tight line-clamp-1 italic">
+          📝 {data.memo}
         </p>
       )}
     </div>
@@ -95,6 +118,7 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
         name: protagonist.name,
         role: protagonist.role,
         description: protagonist.description,
+        memo: protagonist.memo,
         isDeceased: protagonist.is_deceased,
       },
     })
@@ -107,7 +131,7 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
       id: c.id,
       type: 'character',
       position: { x, y: CY - 190 },
-      data: { name: c.name, role: c.role, description: c.description, isDeceased: c.is_deceased },
+      data: { name: c.name, role: c.role, description: c.description, memo: c.memo, isDeceased: c.is_deceased },
     })
     if (protagonist) {
       edges.push({
@@ -135,7 +159,7 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
       id: c.id,
       type: 'character',
       position: { x, y },
-      data: { name: c.name, role: c.role, description: c.description, isDeceased: c.is_deceased },
+      data: { name: c.name, role: c.role, description: c.description, memo: c.memo, isDeceased: c.is_deceased },
     })
     if (protagonist) {
       edges.push({
@@ -152,7 +176,7 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
     }
   })
 
-  // 주인공 없을 때: 캐릭터들을 원형 배치
+  // 주인공 없을 때: 원형 배치
   if (!protagonist && characters.length > 0) {
     characters.forEach((c, i) => {
       const angle = (2 * Math.PI * i) / characters.length - Math.PI / 2
@@ -161,7 +185,7 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
         id: c.id,
         type: 'character',
         position: { x: CX + R * Math.cos(angle), y: CY + R * Math.sin(angle) },
-        data: { name: c.name, role: c.role, description: c.description, isDeceased: c.is_deceased },
+        data: { name: c.name, role: c.role, description: c.description, memo: c.memo, isDeceased: c.is_deceased },
       })
     })
   }
@@ -188,54 +212,147 @@ function saveCustomEdges(projectId: string, edges: Edge[]) {
   try { localStorage.setItem(`nf-map-edges-${projectId}`, JSON.stringify(custom)) } catch {}
 }
 
+type EditData = {
+  name: string
+  role: 'protagonist' | 'antagonist' | 'supporting'
+  description: string
+  memo: string
+}
+
 export function CharacterMindMapInner({
   characters,
   projectId,
+  charDocs = [],
+  onDocumentCreated,
+  onDocumentDeleted,
+  onDocumentUpdated,
 }: {
   characters: Character[]
   projectId: string
+  charDocs?: Document[]
+  onDocumentCreated?: (doc: Document) => void
+  onDocumentDeleted?: (docId: string) => void
+  onDocumentUpdated?: (docId: string, updates: Partial<Document>) => void
 }) {
   const qc = useQueryClient()
+
+  // 추가 폼 상태
   const [showAddForm, setShowAddForm] = useState(false)
   const [addName, setAddName] = useState('')
   const [addRole, setAddRole] = useState<'protagonist' | 'antagonist' | 'supporting'>('supporting')
   const [addDesc, setAddDesc] = useState('')
+  const [addMemo, setAddMemo] = useState('')
+
+  // 편집 패널 상태
+  const [editingCharId, setEditingCharId] = useState<string | null>(null)
+  const [editData, setEditData] = useState<EditData | null>(null)
+
+  // ── 뮤테이션 ──────────────────────────────────────────────────────────────
 
   const deleteCharMutation = useMutation({
     mutationFn: async (id: string) => {
+      const char = characters.find(c => c.id === id)
       const res = await fetch(`/api/characters/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('삭제 실패')
+      // 연결된 character-card 문서도 함께 삭제
+      if (char) {
+        const matchingDoc = charDocs.find(d => d.title === char.name)
+        if (matchingDoc) {
+          await fetch(`/api/documents/${matchingDoc.id}`, { method: 'DELETE' })
+          onDocumentDeleted?.(matchingDoc.id)
+        }
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['characters', projectId] }),
   })
 
   const addCharMutation = useMutation({
-    mutationFn: async (data: { name: string; role: string; description: string }) => {
-      const res = await fetch('/api/characters', {
+    mutationFn: async (data: { name: string; role: string; description: string; memo: string }) => {
+      const charRes = await fetch('/api/characters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project_id: projectId, ...data }),
       })
-      if (!res.ok) throw new Error('추가 실패')
-      return res.json()
+      if (!charRes.ok) throw new Error('추가 실패')
+      const char = await charRes.json()
+
+      // character-card 문서도 함께 생성하여 사이드바 동기화
+      const docRes = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId, type: 'character-card', title: data.name }),
+      })
+      if (docRes.ok) {
+        const doc = await docRes.json()
+        onDocumentCreated?.(doc)
+      }
+
+      return char
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['characters', projectId] })
-      setAddName('')
-      setAddDesc('')
-      setShowAddForm(false)
+      setAddName(''); setAddDesc(''); setAddMemo(''); setShowAddForm(false)
     },
   })
 
+  const saveEditMutation = useMutation({
+    mutationFn: async (data: EditData & { id: string }) => {
+      const res = await fetch(`/api/characters/${data.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: data.name, role: data.role, description: data.description, memo: data.memo }),
+      })
+      if (!res.ok) throw new Error('수정 실패')
+      return res.json()
+    },
+    onSuccess: (updated, variables) => {
+      qc.invalidateQueries({ queryKey: ['characters', projectId] })
+      // 노드 데이터 즉시 업데이트 (리마운트 없이)
+      setNodes(nds => nds.map(n =>
+        n.id === updated.id
+          ? { ...n, data: { ...n.data, name: updated.name, role: updated.role, description: updated.description, memo: updated.memo } }
+          : n
+      ))
+
+      // 이름이 변경된 경우 연결 문서 제목도 업데이트 (best-effort)
+      const originalChar = characters.find(c => c.id === variables.id)
+      if (originalChar && originalChar.name !== variables.name) {
+        const matchingDoc = charDocs.find(d => d.title === originalChar.name)
+        if (matchingDoc) {
+          fetch(`/api/documents/${matchingDoc.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: variables.name }),
+          }).then(r => {
+            if (r.ok) onDocumentUpdated?.(matchingDoc.id, { title: variables.name })
+          }).catch(() => {})
+        }
+      }
+
+      setEditingCharId(null)
+      setEditData(null)
+    },
+  })
+
+  // 콜백 ref 업데이트 (렌더마다 최신 클로저 유지)
   deleteCallbackRef.current = (id: string) => {
-    if (window.confirm('이 인물을 삭제할까요?')) {
-      deleteCharMutation.mutate(id)
-    }
+    if (window.confirm('이 인물을 삭제할까요?')) deleteCharMutation.mutate(id)
   }
+  editCallbackRef.current = (id: string, nodeData: CharacterNodeData) => {
+    setEditingCharId(id)
+    setEditData({
+      name: nodeData.name,
+      role: (nodeData.role as EditData['role']) ?? 'supporting',
+      description: String(nodeData.description ?? ''),
+      memo: String(nodeData.memo ?? ''),
+    })
+  }
+
+  // ── ReactFlow 상태 ────────────────────────────────────────────────────────
 
   const initialData = useMemo(() => {
     const { nodes: autoNodes, edges: autoEdges } = buildGraph(characters)
-    const savedPos  = loadPositions(projectId)
+    const savedPos = loadPositions(projectId)
     const nodes = autoNodes.map(n =>
       savedPos[n.id] ? { ...n, position: savedPos[n.id] } : n
     )
@@ -288,6 +405,71 @@ export function CharacterMindMapInner({
     savePositions(projectId, nodes)
   }, [nodes, projectId])
 
+  // ── 패널 UI ───────────────────────────────────────────────────────────────
+
+  const editPanel = editingCharId && editData ? (
+    <div className="absolute top-4 right-4 z-20 w-60 bg-white rounded-xl border border-pink-200 shadow-xl p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-[#db2777] flex items-center gap-1">
+          <Pencil className="size-3.5" /> 인물 수정
+        </p>
+        <button
+          onClick={() => { setEditingCharId(null); setEditData(null) }}
+          className="text-gray-400 hover:text-gray-600 nodrag"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      <input
+        className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
+        placeholder="이름 *"
+        value={editData.name}
+        onChange={(e) => setEditData(prev => prev ? { ...prev, name: e.target.value } : null)}
+      />
+      <select
+        className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
+        value={editData.role}
+        onChange={(e) => setEditData(prev => prev ? { ...prev, role: e.target.value as EditData['role'] } : null)}
+      >
+        <option value="protagonist">주인공</option>
+        <option value="antagonist">빌런/적대자</option>
+        <option value="supporting">조연</option>
+      </select>
+      <input
+        className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777]"
+        placeholder="설명 (선택)"
+        value={editData.description}
+        onChange={(e) => setEditData(prev => prev ? { ...prev, description: e.target.value } : null)}
+      />
+      <textarea
+        className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777] resize-none"
+        placeholder="메모 (선택) — 작가 노트, 관계 힌트 등"
+        rows={3}
+        value={editData.memo}
+        onChange={(e) => setEditData(prev => prev ? { ...prev, memo: e.target.value } : null)}
+      />
+      <div className="flex gap-1.5 justify-end">
+        <button
+          onClick={() => { setEditingCharId(null); setEditData(null) }}
+          className="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100"
+        >취소</button>
+        <button
+          onClick={() => {
+            if (!editData.name.trim() || !editingCharId) return
+            saveEditMutation.mutate({ id: editingCharId, ...editData, name: editData.name.trim() })
+          }}
+          disabled={!editData.name.trim() || saveEditMutation.isPending}
+          className="text-xs px-2 py-1 rounded bg-[#db2777] text-white disabled:opacity-50"
+        >
+          {saveEditMutation.isPending ? '저장 중...' : '저장'}
+        </button>
+      </div>
+      {saveEditMutation.isError && (
+        <p className="text-[10px] text-red-500">수정에 실패했습니다.</p>
+      )}
+    </div>
+  ) : null
+
   const addCharPanel = showAddForm ? (
     <div className="absolute bottom-4 right-4 z-10 w-52 bg-white rounded-xl border border-pink-200 shadow-xl p-3 space-y-2">
       <p className="text-xs font-semibold text-[#db2777] flex items-center gap-1">
@@ -300,7 +482,8 @@ export function CharacterMindMapInner({
         onChange={(e) => setAddName(e.target.value)}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return
-          if (e.key === 'Enter' && addName.trim()) addCharMutation.mutate({ name: addName.trim(), role: addRole, description: addDesc.trim() })
+          if (e.key === 'Enter' && addName.trim())
+            addCharMutation.mutate({ name: addName.trim(), role: addRole, description: addDesc.trim(), memo: addMemo.trim() })
         }}
         autoFocus
       />
@@ -319,20 +502,32 @@ export function CharacterMindMapInner({
         value={addDesc}
         onChange={(e) => setAddDesc(e.target.value)}
       />
+      <textarea
+        className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-[#db2777] resize-none"
+        placeholder="메모 (선택)"
+        rows={2}
+        value={addMemo}
+        onChange={(e) => setAddMemo(e.target.value)}
+      />
       <div className="flex gap-1.5 justify-end">
         <button
-          onClick={() => { setShowAddForm(false); setAddName(''); setAddDesc('') }}
+          onClick={() => { setShowAddForm(false); setAddName(''); setAddDesc(''); setAddMemo('') }}
           className="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100"
         >취소</button>
         <button
           onClick={() => {
             if (!addName.trim()) return
-            addCharMutation.mutate({ name: addName.trim(), role: addRole, description: addDesc.trim() })
+            addCharMutation.mutate({ name: addName.trim(), role: addRole, description: addDesc.trim(), memo: addMemo.trim() })
           }}
           disabled={!addName.trim() || addCharMutation.isPending}
           className="text-xs px-2 py-1 rounded bg-[#db2777] text-white disabled:opacity-50"
-        >추가</button>
+        >
+          {addCharMutation.isPending ? '추가 중...' : '추가'}
+        </button>
       </div>
+      {addCharMutation.isError && (
+        <p className="text-[10px] text-red-500">추가에 실패했습니다.</p>
+      )}
     </div>
   ) : (
     <button
@@ -363,11 +558,14 @@ export function CharacterMindMapInner({
       <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-full px-3 py-1 text-[10px] text-gray-500 pointer-events-none shadow-sm">
         <span>드래그로 이동</span>
         <span className="w-px h-3 bg-gray-300" />
-        <span>노드 가장자리 → 드래그로 관계 연결</span>
+        <span>핑크 버튼 클릭 → 편집</span>
         <span className="w-px h-3 bg-gray-300" />
-        <span>연결선 더블클릭으로 라벨 수정</span>
+        <span>가장자리 드래그 → 관계 연결</span>
+        <span className="w-px h-3 bg-gray-300" />
+        <span>연결선 더블클릭 → 라벨 수정</span>
       </div>
 
+      {editPanel}
       {addCharPanel}
 
       <ReactFlow
