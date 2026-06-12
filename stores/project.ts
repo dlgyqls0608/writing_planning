@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import type { Project, Document, DocumentType } from '@/types'
 
-type SpecialView = 'character-map'
+type SpecialView = 'character-map' | 'foreshadow-tracker'
 
 interface ProjectStore {
   currentProject: Project | null

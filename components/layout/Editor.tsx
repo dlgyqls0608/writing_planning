@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { RotateCcw, Save, ExternalLink, Download, Pencil, Eye, History, TrendingUp, Network } from 'lucide-react'
+import { RotateCcw, Save, ExternalLink, Download, Pencil, Eye, History, TrendingUp, Network, Bookmark } from 'lucide-react'
 import { useProjectStore } from '@/stores/project'
 import { StreamingText } from '@/components/streaming/StreamingText'
 import { DocRenderer } from '@/components/streaming/DocRenderer'
@@ -19,7 +19,9 @@ import { BibleGlossaryInput } from '@/components/documents/BibleGlossaryInput'
 import { CharacterCardInput } from '@/components/documents/CharacterCardInput'
 import { EmotionCurve } from '@/components/visualizations/EmotionCurve'
 import { CharacterMindMap } from '@/components/visualizations/CharacterMindMap'
-import type { Project, GenerateRequest, Character } from '@/types'
+import { ForeshadowTimeline } from '@/components/visualizations/ForeshadowTimeline'
+import { useQuery } from '@tanstack/react-query'
+import type { Project, GenerateRequest, Character, Foreshadow } from '@/types'
 
 interface EditorProps {
   project: Project
@@ -71,6 +73,12 @@ async function fetchCharacters(projectId: string): Promise<Character[]> {
   return res.json()
 }
 
+async function fetchForeshadows(projectId: string): Promise<Foreshadow[]> {
+  const res = await fetch(`/api/foreshadows?projectId=${projectId}`)
+  if (!res.ok) return []
+  return res.json()
+}
+
 export function Editor({ project }: EditorProps) {
   const { selectedDocumentId, selectedDocumentType, selectedView, documents, updateDocument } = useProjectStore()
 
@@ -85,8 +93,18 @@ export function Editor({ project }: EditorProps) {
   const [notionDialogOpen, setNotionDialogOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [showEmotionCurve, setShowEmotionCurve] = useState(false)
-  const [characters, setCharacters] = useState<Character[]>([])
-  const [charsLoading, setCharsLoading] = useState(false)
+
+  const { data: characters = [], isLoading: charsLoading } = useQuery({
+    queryKey: ['characters', project.id],
+    queryFn: () => fetchCharacters(project.id),
+    enabled: selectedView === 'character-map',
+  })
+
+  const { data: foreshadows = [] } = useQuery({
+    queryKey: ['foreshadows', project.id],
+    queryFn: () => fetchForeshadows(project.id),
+    enabled: selectedView === 'foreshadow-tracker',
+  })
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -104,14 +122,6 @@ export function Editor({ project }: EditorProps) {
     setShowEmotionCurve(false)
   }, [selectedDocumentId])
 
-  // 관계도 뷰 진입 시 인물 데이터 로드
-  useEffect(() => {
-    if (selectedView !== 'character-map') return
-    setCharsLoading(true)
-    fetchCharacters(project.id)
-      .then(setCharacters)
-      .finally(() => setCharsLoading(false))
-  }, [selectedView, project.id])
 
   async function generate(userInput: string) {
     if (!selectedDoc || !selectedDocumentType || !userInput.trim()) return
@@ -210,6 +220,26 @@ export function Editor({ project }: EditorProps) {
     a.download = `${project.title}_${meta?.title ?? ''}.txt`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // ── 특수 뷰: 복선 트래커 ─────────────────────────────────────────────────
+  if (selectedView === 'foreshadow-tracker') {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="shrink-0 bg-white border-b border-gray-100 px-6 py-2.5 flex items-center gap-2">
+          <Bookmark className="size-4 text-[#dc2626]" />
+          <span className="text-sm font-semibold text-gray-800">복선 트래커</span>
+          <span className="ml-2 text-xs text-gray-400">
+            {foreshadows.length > 0 ? `총 ${foreshadows.length}개 · 미회수 ${foreshadows.filter(f => !f.is_resolved).length}개` : ''}
+          </span>
+        </div>
+        <div className="flex-1 overflow-y-auto p-8">
+          <div className="max-w-2xl mx-auto">
+            <ForeshadowTimeline foreshadows={foreshadows} />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // ── 특수 뷰: 인물 관계도 ─────────────────────────────────────────────────

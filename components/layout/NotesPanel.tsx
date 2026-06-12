@@ -248,10 +248,10 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                   </span>
                   {resolvingId === f.id && (
                     <div className="flex items-center gap-1 mt-1.5">
-                      <span className="text-[10px] text-gray-500 shrink-0">회수 화수 (선택):</span>
+                      <span className="text-[10px] text-gray-500 shrink-0">화수:</span>
                       <input
                         type="number"
-                        className="w-14 text-xs border border-green-300 rounded px-1.5 py-0.5 outline-none focus:border-green-500"
+                        className="w-16 text-xs border border-green-300 rounded px-1.5 py-0.5 outline-none focus:border-green-500"
                         placeholder="예: 15"
                         value={resolvingEp}
                         onChange={(e) => setResolvingEp(e.target.value)}
@@ -264,12 +264,12 @@ export function NotesPanel({ projectId, genre }: NotesPanelProps) {
                       />
                       <button
                         onClick={() => toggleMutation.mutate({ id: f.id, is_resolved: true, resolved_episode: resolvingEp ? Number(resolvingEp) : undefined })}
-                        className="text-[10px] px-1.5 py-0.5 bg-green-500 text-white rounded hover:bg-green-600"
-                      >확인</button>
+                        className="shrink-0 px-2 py-0.5 text-[11px] bg-green-500 text-white rounded hover:bg-green-600"
+                      >✓</button>
                       <button
                         onClick={() => { setResolvingId(null); setResolvingEp('') }}
-                        className="text-[10px] text-gray-400 hover:text-gray-600"
-                      >취소</button>
+                        className="shrink-0 px-1.5 py-0.5 text-[11px] text-gray-400 border border-gray-200 rounded hover:bg-gray-100"
+                      >✕</button>
                     </div>
                   )}
                 </div>
