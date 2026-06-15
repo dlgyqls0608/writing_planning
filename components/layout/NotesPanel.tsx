@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Bookmark, Trash2, ChevronDown, ChevronUp, CheckSquare, Users, Pencil, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { fetchCharacters, fetchForeshadows } from '@/lib/api'
 import { SuccessChecklist } from '@/components/checklist/SuccessChecklist'
 import type { Character, Foreshadow } from '@/types'
 
@@ -14,12 +15,6 @@ interface NotesPanelProps {
 interface Note {
   id: string
   text: string
-}
-
-async function fetchForeshadows(projectId: string): Promise<Foreshadow[]> {
-  const res = await fetch(`/api/foreshadows?projectId=${projectId}`)
-  if (!res.ok) return []
-  return res.json()
 }
 
 async function createForeshadow(data: {
@@ -59,23 +54,12 @@ async function deleteForeshadow(id: string) {
 }
 
 async function updateForeshadowEpisodes(id: string, planted_episode: number | null, resolved_episode: number | null) {
-  const body: Record<string, unknown> = {}
-  if (planted_episode !== null) body.planted_episode = planted_episode
-  else body.planted_episode = null
-  if (resolved_episode !== null) body.resolved_episode = resolved_episode
-  else body.resolved_episode = null
   const res = await fetch(`/api/foreshadows/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ planted_episode, resolved_episode }),
   })
   if (!res.ok) throw new Error('화수 업데이트 실패')
-  return res.json()
-}
-
-async function fetchCharacters(projectId: string): Promise<Character[]> {
-  const res = await fetch(`/api/characters?projectId=${projectId}`)
-  if (!res.ok) throw new Error('인물 목록 불러오기 실패')
   return res.json()
 }
 

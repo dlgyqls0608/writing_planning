@@ -47,10 +47,7 @@ export interface Character {
   project_id: string
   name: string
   role: string
-  archetype: string
   description: string
-  motivation: string
-  arc: string
   memo: string
   is_deceased: boolean
   deceased_episode?: number | null

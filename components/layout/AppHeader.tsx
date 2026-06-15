@@ -7,10 +7,9 @@ import type { Project } from '@/types'
 
 interface AppHeaderProps {
   project?: Project
-  onNewIdea?: () => void
 }
 
-export function AppHeader({ project, onNewIdea }: AppHeaderProps) {
+export function AppHeader({ project }: AppHeaderProps) {
   const { toggleBinder, toggleNotes } = useProjectStore()
 
   return (
@@ -30,14 +29,6 @@ export function AppHeader({ project, onNewIdea }: AppHeaderProps) {
       <div className="ml-auto flex items-center gap-2">
         {project && (
           <>
-            {onNewIdea && (
-              <button
-                onClick={onNewIdea}
-                className="text-xs px-3 py-1.5 rounded-md bg-[#4f46e5] text-white hover:bg-[#4338ca] transition-colors"
-              >
-                + 아이디어 입력
-              </button>
-            )}
             <button
               onClick={toggleBinder}
               className="p-1.5 rounded hover:bg-gray-100 text-gray-500"

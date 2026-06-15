@@ -24,12 +24,6 @@ function extractPlainText(markdown: string): string {
 }
 
 const GENRE_OPTIONS = ['현대물', '판타지', '로맨스', '로맨스판타지', '무협', '헌터물', 'SF', '기타']
-const STATUS_LABEL: Record<string, string> = {
-  empty: '시작 전',
-  draft: '작성중',
-  generated: '생성됨',
-  finalized: '완성',
-}
 
 async function fetchProjects(): Promise<Project[]> {
   const res = await fetch('/api/projects')

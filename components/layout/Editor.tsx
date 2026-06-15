@@ -22,8 +22,9 @@ import { EmotionCurve } from '@/components/visualizations/EmotionCurve'
 import { CharacterMindMap } from '@/components/visualizations/CharacterMindMap'
 import { ForeshadowTimeline } from '@/components/visualizations/ForeshadowTimeline'
 import { deleteBlock } from '@/lib/docParser'
+import { fetchCharacters, fetchForeshadows } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
-import type { Project, GenerateRequest, Character, Foreshadow } from '@/types'
+import type { Project, GenerateRequest } from '@/types'
 
 interface EditorProps {
   project: Project
@@ -70,18 +71,6 @@ function InputForm({
     case 'character-card':   return <CharacterCardInput {...props} docTitle={doc.title} />
     default:                 return null
   }
-}
-
-async function fetchCharacters(projectId: string): Promise<Character[]> {
-  const res = await fetch(`/api/characters?projectId=${projectId}`)
-  if (!res.ok) return []
-  return res.json()
-}
-
-async function fetchForeshadows(projectId: string): Promise<Foreshadow[]> {
-  const res = await fetch(`/api/foreshadows?projectId=${projectId}`)
-  if (!res.ok) return []
-  return res.json()
 }
 
 export function Editor({ project }: EditorProps) {

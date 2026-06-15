@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { project_id, name, role, archetype, description, motivation, arc, memo } = body
+  const { project_id, name, role, description, memo } = body
 
   if (!project_id || !name || !role) {
     return NextResponse.json({ error: 'project_id, name, role 필수' }, { status: 400 })
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('characters')
-    .insert({ project_id, name, role, archetype: archetype ?? '', description: description ?? '', motivation: motivation ?? '', arc: arc ?? '', memo: memo ?? '' })
+    .insert({ project_id, name, role, description: description ?? '', memo: memo ?? '' })
     .select()
     .single()
 

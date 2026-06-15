@@ -7,9 +7,10 @@ import {
 } from 'lucide-react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { useProjectStore } from '@/stores/project'
+import { fetchCharacters } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import type { Project, Document, DocumentType, Character } from '@/types'
+import type { Project, Document, DocumentType } from '@/types'
 
 interface BinderProps {
   project: Project
@@ -198,12 +199,6 @@ function InlineAddForm({
 
 // ── 메인 Binder 컴포넌트 ──────────────────────────────────────────────────
 
-async function fetchCharacters(projectId: string): Promise<Character[]> {
-  const res = await fetch(`/api/characters?projectId=${projectId}`)
-  if (!res.ok) return []
-  return res.json()
-}
-
 export function Binder({ project }: BinderProps) {
   const { selectedDocumentId, selectedView, selectDocument, setSelectedView, addDocument, removeDocument, documents } = useProjectStore()
 
@@ -243,7 +238,9 @@ export function Binder({ project }: BinderProps) {
   // 문서 조회 헬퍼
   const getDoc = (type: DocumentType) => documents.find((d) => d.type === type)
   const getDocs = (type: DocumentType) =>
-    documents.filter((d) => d.type === type).sort((a, b) => a.title.localeCompare(b.title))
+    documents.filter((d) => d.type === type).sort((a, b) =>
+      a.title.localeCompare(b.title, 'ko', { numeric: true })
+    )
 
   // ── API 헬퍼 ─────────────────────────────────────────────────────────────
   async function createDoc(type: DocumentType, title: string): Promise<Document | null> {
