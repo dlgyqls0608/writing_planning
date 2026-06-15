@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow, Background, Controls, MiniMap, Handle, Position,
   useNodesState, useEdgesState, addEdge,
@@ -180,13 +180,21 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
     })
   }
 
+  // 적대자: 한 행에 최대 5명, 초과 시 다열로 위로 쌓음
+  const MAX_ANT_ROW = 5
   antagonists.forEach((c, i) => {
     const total = antagonists.length
-    const x = CX + (i - (total - 1) / 2) * 240
+    const rowCount = Math.ceil(total / MAX_ANT_ROW)
+    const row = Math.floor(i / MAX_ANT_ROW)
+    const col = i % MAX_ANT_ROW
+    const perRow = row < rowCount - 1 ? MAX_ANT_ROW : total - (rowCount - 1) * MAX_ANT_ROW
+    const spacing = perRow > 1 ? Math.min(220, 880 / (perRow - 1)) : 0
+    const x = CX + (col - (perRow - 1) / 2) * spacing
+    const y = CY - 200 - (rowCount - 1 - row) * 180
     nodes.push({
       id: c.id,
       type: 'character',
-      position: { x, y: CY - 190 },
+      position: { x, y },
       data: { name: c.name, role: c.role, description: c.description, memo: c.memo, isDeceased: c.is_deceased },
     })
     if (protagonist) {
@@ -204,13 +212,14 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
     }
   })
 
+  // 서브 인물: 인원 수에 비례해 반지름 확대 (겹침 방지)
+  const arcR = Math.max(220, arcChars.length * 55)
   arcChars.forEach((c, i) => {
     const total = arcChars.length
     const frac  = total === 1 ? 0.5 : i / (total - 1)
     const angle = Math.PI + frac * Math.PI
-    const R = 210
-    const x = CX + R * Math.cos(angle)
-    const y = CY + 90 + Math.abs(R * 0.45 * Math.sin(angle))
+    const x = CX + arcR * Math.cos(angle)
+    const y = CY + 100 + Math.abs(arcR * 0.5 * Math.sin(angle))
     nodes.push({
       id: c.id,
       type: 'character',
@@ -246,11 +255,11 @@ function buildGraph(characters: Character[]): { nodes: Node[]; edges: Edge[] } {
     }
   })
 
-  // 주인공 없을 때: 원형 배치
+  // 주인공 없을 때: 원형 배치, 인원 수에 비례해 반지름 확대
   if (!protagonist && characters.length > 0) {
+    const R = Math.max(200, characters.length * 40)
     characters.forEach((c, i) => {
       const angle = (2 * Math.PI * i) / characters.length - Math.PI / 2
-      const R = 200
       nodes.push({
         id: c.id,
         type: 'character',
@@ -465,6 +474,71 @@ export function CharacterMindMapInner({
   const [nodes, setNodes, onNodesChange] = useNodesState(initialData.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialData.edges)
 
+  // 마운트 후 characters prop 변경 시 전체 리마운트 없이 노드/엣지를 점진적으로 동기화
+  const isFirstSync = useRef(true)
+  useEffect(() => {
+    if (isFirstSync.current) {
+      isFirstSync.current = false
+      return
+    }
+    const { nodes: defaultNodes, edges: newAutoEdges } = buildGraph(characters)
+    const savedPos = loadPositions(projectId)
+
+    setNodes(prev => {
+      const notepadNodes = prev.filter(n => n.type === 'notepad')
+      const prevCharNodes = prev.filter(n => n.type === 'character')
+      const prevCharIdSet = new Set(prevCharNodes.map(n => n.id))
+      const newCharIdSet  = new Set(characters.map(c => c.id))
+
+      // 기존 노드: 삭제된 인물 제거 + 데이터 갱신
+      const retained = prevCharNodes
+        .filter(n => newCharIdSet.has(n.id))
+        .map(n => {
+          const char = characters.find(c => c.id === n.id)!
+          return {
+            ...n,
+            data: {
+              name: char.name,
+              role: char.role,
+              description: char.description ?? '',
+              memo: char.memo ?? '',
+              isDeceased: char.is_deceased ?? false,
+            },
+          }
+        })
+
+      // 새로 추가된 인물 노드 생성
+      const added: Node[] = characters
+        .filter(c => !prevCharIdSet.has(c.id))
+        .map(c => {
+          const defaultNode = defaultNodes.find(n => n.id === c.id)
+          return {
+            id: c.id,
+            type: 'character' as const,
+            position: savedPos[c.id] ?? defaultNode?.position ?? {
+              x: 250 + Math.random() * 300,
+              y: 180 + Math.random() * 250,
+            },
+            data: {
+              name: c.name,
+              role: c.role,
+              description: c.description ?? '',
+              memo: c.memo ?? '',
+              isDeceased: c.is_deceased ?? false,
+            },
+          }
+        })
+
+      return [...retained, ...added, ...notepadNodes]
+    })
+
+    // 자동 엣지 재계산, 커스텀 엣지 유지
+    setEdges(prev => {
+      const customEdges = prev.filter(e => e.id.startsWith('custom-'))
+      return [...newAutoEdges, ...customEdges]
+    })
+  }, [characters, projectId])
+
   const onConnect = useCallback(
     (connection: Connection) => {
       const label = window.prompt('관계 이름을 입력하세요 (예: 친구, 라이벌, 연인):', '관계') ?? '관계'
@@ -532,10 +606,11 @@ export function CharacterMindMapInner({
     [setEdges, projectId],
   )
 
-  const onNodeDragStop = useCallback(() => {
-    savePositions(projectId, nodes)
-    saveNotepadNodes(projectId, nodes)
-  }, [nodes, projectId])
+  // ReactFlow가 전달하는 currentNodes를 사용해 stale closure 방지
+  const onNodeDragStop = useCallback((_: MouseEvent | TouchEvent, __: Node, currentNodes: Node[]) => {
+    savePositions(projectId, currentNodes)
+    saveNotepadNodes(projectId, currentNodes)
+  }, [projectId])
 
   // ── 패널 UI ───────────────────────────────────────────────────────────────
 

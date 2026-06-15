@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   ChevronDown, ChevronRight, FileText, BarChart2, BookOpen, Bookmark,
   AlignLeft, Plus, Loader2, Globe, Zap, BookMarked, User, Layers, Network, Trash2,
@@ -364,12 +364,12 @@ export function Binder({ project }: BinderProps) {
   }
 
   // ── 렌더 ─────────────────────────────────────────────────────────────────
-  const loglineDoc = getDoc('logline')
-  const synopsisDoc = getDoc('synopsis')
-  const plotDoc = getDoc('plot')
-  const plotChapters = getDocs('plot-chapter')
-  const treatmentDocs = getDocs('treatment')
-  const charDocs = getDocs('character-card')
+  const loglineDoc    = useMemo(() => getDoc('logline'),        [documents])
+  const synopsisDoc   = useMemo(() => getDoc('synopsis'),       [documents])
+  const plotDoc       = useMemo(() => getDoc('plot'),           [documents])
+  const plotChapters  = useMemo(() => getDocs('plot-chapter'),  [documents])
+  const treatmentDocs = useMemo(() => getDocs('treatment'),     [documents])
+  const charDocs      = useMemo(() => getDocs('character-card'),[documents])
 
   return (
     <div className="flex flex-col h-full">

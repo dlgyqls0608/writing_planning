@@ -25,10 +25,9 @@ interface Props {
 }
 
 export function CharacterMindMap({ characters, projectId, charDocs, onDocumentCreated, onDocumentDeleted, onDocumentUpdated }: Props) {
-  const key = characters.map(c => c.id).join(',')
   return (
     <CharacterMindMapInner
-      key={key}
+      key={projectId}
       characters={characters}
       projectId={projectId}
       charDocs={charDocs}

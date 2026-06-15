@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { RotateCcw, Save, ExternalLink, Download, Pencil, Eye, History, TrendingUp, Network, Bookmark, Check, Undo2 } from 'lucide-react'
 import { useProjectStore } from '@/stores/project'
 import { StreamingText } from '@/components/streaming/StreamingText'
@@ -92,7 +92,7 @@ export function Editor({ project }: EditorProps) {
   // 변경 비교: 재생성 전 원본 내용 보관
   const [prevContent, setPrevContent] = useState<string | null>(null)
 
-  const charDocs = documents.filter(d => d.type === 'character-card')
+  const charDocs = useMemo(() => documents.filter(d => d.type === 'character-card'), [documents])
 
   const { data: characters = [], isLoading: charsLoading } = useQuery({
     queryKey: ['characters', project.id],

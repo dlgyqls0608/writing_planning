@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Trash2 } from 'lucide-react'
 import { parseBlocks, Block } from '@/lib/docParser'
 
@@ -135,7 +135,7 @@ interface DocRendererProps {
 }
 
 export function DocRenderer({ content, onDelete }: DocRendererProps) {
-  const blocks = parseBlocks(content)
+  const blocks = useMemo(() => parseBlocks(content), [content])
   let h2Count = 0
 
   return (
