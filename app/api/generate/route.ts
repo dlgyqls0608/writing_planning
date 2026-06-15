@@ -57,14 +57,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '필수 항목이 누락되었습니다' }, { status: 400 })
   }
 
-  const { data: project } = await supabase
+  let { data: project, error: projectError } = await supabase
     .from('projects')
     .select('title, genre, target_episodes, logline, story_context')
     .eq('id', body.projectId)
     .eq('user_id', user.id)
     .single()
 
-  if (!project) return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다' }, { status: 404 })
+  // story_context 컬럼이 없을 때(v7 마이그레이션 미적용) fallback
+  if (projectError && !project) {
+    const { data: fallback, error: fallbackError } = await supabase
+      .from('projects')
+      .select('title, genre, target_episodes, logline')
+      .eq('id', body.projectId)
+      .eq('user_id', user.id)
+      .single()
+    if (!fallbackError && fallback) {
+      project = { ...fallback, story_context: null }
+      projectError = null
+    }
+  }
+
+  if (projectError || !project) {
+    return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다' }, { status: 404 })
+  }
 
   const storyContext: StoryContext = (project.story_context as StoryContext) ?? {
     core: '', active: '', upcoming: '',
