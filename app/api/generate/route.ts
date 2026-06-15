@@ -1,10 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getAIClient } from '@/lib/ai/client'
-import { getSystemPrompt, getQuestionPrompt, buildUserPrompt, getModelConfig } from '@/lib/ai/prompts'
-import type { GenerateRequest } from '@/types'
+import {
+  getSystemPrompt,
+  getQuestionPrompt,
+  buildUserPrompt,
+  getModelConfig,
+  COMPRESSION_SYSTEM_PROMPT,
+  buildCompressionPrompt,
+} from '@/lib/ai/prompts'
+import type { GenerateRequest, StoryContext } from '@/types'
 
 export const maxDuration = 300 // Vercel Pro: up to 300s for AI streaming
+
+async function compressStoryContext(
+  existing: StoryContext,
+  newContent: string,
+  docType: GenerateRequest['type'],
+): Promise<StoryContext> {
+  const result = await getAIClient().messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 150,
+    system: COMPRESSION_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: buildCompressionPrompt(existing, newContent, docType) }],
+  })
+
+  const raw = result.content[0].type === 'text' ? result.content[0].text : ''
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (!match) return existing
+
+  try {
+    const parsed = JSON.parse(match[0])
+    return {
+      core:     String(parsed.core     ?? existing.core     ?? '').slice(0, 80),
+      active:   String(parsed.active   ?? existing.active   ?? '').slice(0, 100),
+      upcoming: String(parsed.upcoming ?? existing.upcoming ?? '').slice(0, 80),
+    }
+  } catch {
+    return existing
+  }
+}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -22,17 +57,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '필수 항목이 누락되었습니다' }, { status: 400 })
   }
 
-  // Fetch project meta for richer prompts
   const { data: project } = await supabase
     .from('projects')
-    .select('title, genre, target_episodes, logline')
+    .select('title, genre, target_episodes, logline, story_context')
     .eq('id', body.projectId)
     .eq('user_id', user.id)
     .single()
 
   if (!project) return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다' }, { status: 404 })
 
-  // Questions mode: return clarifying questions as JSON (non-streamed)
+  const storyContext: StoryContext = (project.story_context as StoryContext) ?? {
+    core: '', active: '', upcoming: '',
+  }
+
+  // Questions mode: Haiku, non-streamed
   if (body.mode === 'questions') {
     const result = await getAIClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -56,10 +94,11 @@ export async function POST(req: NextRequest) {
 
   const stream = new ReadableStream({
     async start(controller) {
-      // Keep-alive: send SSE comment every 10s to prevent proxy/CDN timeout
       const heartbeat = setInterval(() => {
         try { controller.enqueue(encoder.encode(': keepalive\n\n')) } catch {}
       }, 10_000)
+
+      let generatedContent = ''
 
       try {
         const { model, maxTokens } = getModelConfig(body.type)
@@ -67,16 +106,15 @@ export async function POST(req: NextRequest) {
           model,
           max_tokens: maxTokens,
           system: getSystemPrompt(body.type),
-          messages: [
-            {
-              role: 'user',
-              content: buildUserPrompt(body, {
-                title: project.title,
-                genre: project.genre,
-                targetEpisodes: project.target_episodes,
-              }),
-            },
-          ],
+          messages: [{
+            role: 'user',
+            content: buildUserPrompt(body, {
+              title: project.title,
+              genre: project.genre,
+              targetEpisodes: project.target_episodes,
+              storyContext,
+            }),
+          }],
         })
 
         for await (const chunk of aiStream) {
@@ -84,9 +122,23 @@ export async function POST(req: NextRequest) {
             chunk.type === 'content_block_delta' &&
             chunk.delta.type === 'text_delta'
           ) {
+            generatedContent += chunk.delta.text
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify({ text: chunk.delta.text })}\n\n`)
             )
+          }
+        }
+
+        // 스트리밍 완료 후 컨텍스트 압축 (Haiku, ~0.5s) → [DONE] 전 실행
+        if (generatedContent) {
+          try {
+            const compressed = await compressStoryContext(storyContext, generatedContent, body.type)
+            await supabase
+              .from('projects')
+              .update({ story_context: compressed })
+              .eq('id', body.projectId)
+          } catch {
+            // 압축 실패는 생성 결과에 영향 없음
           }
         }
 
@@ -106,7 +158,7 @@ export async function POST(req: NextRequest) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no', // Nginx/Vercel: disable response buffering
+      'X-Accel-Buffering': 'no',
     },
   })
 }

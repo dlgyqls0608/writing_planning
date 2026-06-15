@@ -1,4 +1,4 @@
-import type { DocumentType, GenerateRequest } from '@/types'
+import type { DocumentType, GenerateRequest, StoryContext } from '@/types'
 
 const SYSTEM_PROMPTS: Record<DocumentType, string> = {
   logline: `당신은 한국 웹소설 기획 전문가입니다.
@@ -449,6 +449,7 @@ interface ProjectMeta {
   title?: string
   genre?: string
   targetEpisodes?: number
+  storyContext?: StoryContext
 }
 
 export function buildUserPrompt(req: GenerateRequest, meta?: ProjectMeta): string {
@@ -458,6 +459,18 @@ export function buildUserPrompt(req: GenerateRequest, meta?: ProjectMeta): strin
   if (meta?.genre) lines.push(`장르: ${meta.genre}`)
   if (meta?.targetEpisodes) lines.push(`목표 화수: ${meta.targetEpisodes}화`)
   if (req.context?.logline) lines.push(`로그라인: ${req.context.logline}`)
+
+  // 이야기 컨텍스트 주입 (≈120 토큰 고정 — 전체 문서 대신 압축 요약만 전달)
+  if (meta?.storyContext) {
+    const sc = meta.storyContext
+    if (sc.core || sc.active || sc.upcoming) {
+      lines.push('')
+      lines.push('[이야기 컨텍스트 — 반드시 아래 내용과 일관성을 유지하세요]')
+      if (sc.core)     lines.push(`전제: ${sc.core}`)
+      if (sc.active)   lines.push(`현황: ${sc.active}`)
+      if (sc.upcoming) lines.push(`예고: ${sc.upcoming}`)
+    }
+  }
 
   lines.push('')
   lines.push('작가 아이디어:')
@@ -472,4 +485,34 @@ export function buildUserPrompt(req: GenerateRequest, meta?: ProjectMeta): strin
   }
 
   return lines.join('\n')
+}
+
+// ── 스토리 컨텍스트 압축 ────────────────────────────────────────────────────
+// Haiku로 실행 (저렴), 생성 완료 후 호출 → projects.story_context 갱신
+
+export const COMPRESSION_SYSTEM_PROMPT =
+`당신은 웹소설 이야기 컨텍스트 압축 전문가입니다.
+기존 컨텍스트와 새로 생성된 기획 내용을 읽고 3개 필드를 업데이트하세요.
+
+규칙:
+- core: 작품의 불변 전제 (최대 80자). 이미 값이 있으면 유지, 빈 경우에만 새로 설정.
+- active: 현재까지 확정된 이야기 상태 (최대 100자). 항상 최신 내용으로 덮어쓰기.
+- upcoming: 다음 전개에 반영할 핵심 요소 (최대 80자). 이미 지난 내용은 삭제.
+
+JSON만 반환: {"core":"...","active":"...","upcoming":"..."}`
+
+export function buildCompressionPrompt(
+  existing: StoryContext,
+  newContent: string,
+  docType: DocumentType,
+): string {
+  return `[문서 유형: ${docType}]
+
+[기존 컨텍스트]
+전제: ${existing.core || '(없음)'}
+현황: ${existing.active || '(없음)'}
+예고: ${existing.upcoming || '(없음)'}
+
+[새로 생성된 내용]
+${newContent.slice(0, 800)}`
 }

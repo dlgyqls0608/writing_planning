@@ -1,3 +1,9 @@
+export interface StoryContext {
+  core: string     // 불변 전제 (max 80자)
+  active: string   // 현재 진행 상태 (max 100자)
+  upcoming: string // 다음 전개 핵심 (max 80자)
+}
+
 export type DocumentType =
   | 'logline'
   | 'synopsis'
@@ -19,6 +25,7 @@ export interface Project {
   genre: string
   target_episodes: number
   logline?: string
+  story_context?: StoryContext
   created_at: string
   updated_at: string
 }
