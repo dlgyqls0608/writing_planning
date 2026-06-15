@@ -21,7 +21,8 @@ import { CharacterCardInput } from '@/components/documents/CharacterCardInput'
 import { EmotionCurve } from '@/components/visualizations/EmotionCurve'
 import { CharacterMindMap } from '@/components/visualizations/CharacterMindMap'
 import { ForeshadowTimeline } from '@/components/visualizations/ForeshadowTimeline'
-import { deleteBlock } from '@/lib/docParser'
+import { deleteBlock, parseBlocks } from '@/lib/docParser'
+import { exportToDocx } from '@/lib/exportDocx'
 import { fetchCharacters, fetchForeshadows } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
 import type { Project, GenerateRequest } from '@/types'
@@ -258,13 +259,14 @@ export function Editor({ project }: EditorProps) {
     setIsDirty(true)
   }
 
-  function handleDownload() {
+  async function handleDownload() {
     const content = isDirty ? editedContent : (selectedDoc?.content ?? '')
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+    const blocks = parseBlocks(content)
+    const blob = await exportToDocx(blocks, project.title, meta?.title ?? selectedDoc?.title ?? '')
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${project.title}_${meta?.title ?? ''}.txt`
+    a.download = `${project.title}_${meta?.title ?? ''}.docx`
     a.click()
     URL.revokeObjectURL(url)
   }
