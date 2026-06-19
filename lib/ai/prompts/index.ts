@@ -470,10 +470,10 @@ JSON 배열만 반환하세요. 예: ["질문1", "질문2"]`,
 export function getModelConfig(type: DocumentType): { model: string; maxTokens: number } {
   const configs: Record<DocumentType, { model: string; maxTokens: number }> = {
     logline:          { model: 'claude-haiku-4-5-20251001', maxTokens: 2500  },
-    synopsis:         { model: 'claude-haiku-4-5-20251001', maxTokens: 3000  },
-    plot:             { model: 'claude-sonnet-4-6',         maxTokens: 6000  },
+    synopsis:         { model: 'claude-haiku-4-5-20251001', maxTokens: 4500  },
+    plot:             { model: 'claude-sonnet-4-6',         maxTokens: 8000  },
     'plot-chapter':   { model: 'claude-sonnet-4-6',         maxTokens: 8000  },
-    treatment:        { model: 'claude-sonnet-4-6',         maxTokens: 8000  },
+    treatment:        { model: 'claude-sonnet-4-6',         maxTokens: 6000  },
     'story-bible':    { model: 'claude-sonnet-4-6',         maxTokens: 4000  },
     'bible-world':    { model: 'claude-sonnet-4-6',         maxTokens: 4000  },
     'bible-power':    { model: 'claude-sonnet-4-6',         maxTokens: 4000  },
