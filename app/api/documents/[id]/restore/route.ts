@@ -1,64 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { documents, document_versions } from '@/lib/db/schema'
+import { and, eq, desc } from 'drizzle-orm'
 
 type Params = Promise<{ id: string }>
 
 export async function POST(request: NextRequest, { params }: { params: Params }) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { versionId } = await request.json()
   if (!versionId) return NextResponse.json({ error: 'versionId required' }, { status: 400 })
 
-  const { data: version, error: verErr } = await supabase
-    .from('document_versions')
-    .select('content, user_input')
-    .eq('id', versionId)
-    .eq('document_id', id)
-    .single()
+  const [version] = await db
+    .select({ content: document_versions.content, user_input: document_versions.user_input })
+    .from(document_versions)
+    .where(and(eq(document_versions.id, versionId), eq(document_versions.document_id, id)))
+    .limit(1)
 
-  if (verErr || !version) return NextResponse.json({ error: '버전을 찾을 수 없습니다' }, { status: 404 })
+  if (!version) return NextResponse.json({ error: '버전을 찾을 수 없습니다' }, { status: 404 })
 
-  // 현재 내용을 먼저 새 버전으로 백업
-  const { data: current } = await supabase
-    .from('documents')
-    .select('content, user_input')
-    .eq('id', id)
-    .single()
+  const [current] = await db
+    .select({ content: documents.content, user_input: documents.user_input })
+    .from(documents)
+    .where(eq(documents.id, id))
+    .limit(1)
 
   if (current?.content) {
-    const { data: lastVer } = await supabase
-      .from('document_versions')
-      .select('version_number')
-      .eq('document_id', id)
-      .order('version_number', { ascending: false })
+    const [lastVer] = await db
+      .select({ version_number: document_versions.version_number })
+      .from(document_versions)
+      .where(eq(document_versions.document_id, id))
+      .orderBy(desc(document_versions.version_number))
       .limit(1)
-      .single()
 
-    await supabase.from('document_versions').insert({
-      document_id: id,
+    await db.insert(document_versions).values({
+      document_id:    id,
       version_number: (lastVer?.version_number ?? 0) + 1,
-      content: current.content,
-      user_input: current.user_input ?? '',
+      content:        current.content,
+      user_input:     current.user_input ?? '',
     })
   }
 
-  // 선택한 버전으로 복원
-  const { data, error } = await supabase
-    .from('documents')
-    .update({
-      content: version.content,
-      user_input: version.user_input,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const [data] = await db
+    .update(documents)
+    .set({ content: version.content, user_input: version.user_input, updated_at: new Date() })
+    .where(eq(documents.id, id))
+    .returning()
 
   return NextResponse.json(data)
 }

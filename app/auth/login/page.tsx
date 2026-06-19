@@ -3,7 +3,7 @@
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BookOpen } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { authClient } from '@/lib/auth/client'
 
 function LoginForm() {
   const router = useRouter()
@@ -17,8 +17,6 @@ function LoginForm() {
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const supabase = createClient()
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -27,18 +25,19 @@ function LoginForm() {
 
     try {
       if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) throw error
+        const { error } = await authClient.signIn.email({ email, password })
+        if (error) throw new Error(error.message)
         router.replace(next)
         router.refresh()
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await authClient.signUp.email({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+          name: email,
         })
-        if (error) throw error
-        setMessage('확인 이메일을 발송했습니다. 받은편지함을 확인해주세요.')
+        if (error) throw new Error(error.message)
+        setMessage('회원가입이 완료되었습니다. 로그인해주세요.')
+        setMode('login')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '오류가 발생했습니다')
@@ -50,7 +49,6 @@ function LoginForm() {
   return (
     <div className="min-h-screen bg-[#eef0f5] flex items-center justify-center px-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-100 p-8 space-y-6">
-        {/* 로고 */}
         <div className="flex items-center justify-center gap-2">
           <BookOpen className="size-6 text-[#4f46e5]" />
           <span className="font-bold text-xl text-[#4f46e5]">NovelForge</span>
@@ -83,9 +81,9 @@ function LoginForm() {
               type="password"
               required
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              minLength={6}
+              minLength={8}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/20"
-              placeholder="6자 이상"
+              placeholder="8자 이상"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}

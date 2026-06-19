@@ -1,63 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { projects } from '@/lib/db/schema'
+import { and, eq } from 'drizzle-orm'
 
 type Params = Promise<{ id: string }>
 
 export async function GET(_req: NextRequest, { params }: { params: Params }) {
   const { id } = await params
-  const supabase = await createClient()
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const project = await db.query.projects.findFirst({
+    where: and(eq(projects.id, id), eq(projects.user_id, session.user.id)),
+    with: { documents: true },
+  })
 
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*, documents(*)')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .single()
+  if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 404 })
-
-  return NextResponse.json(data)
+  return NextResponse.json(project)
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Params }) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
 
-  const { data, error } = await supabase
-    .from('projects')
-    .update({ ...body, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .select()
-    .single()
+  const [data] = await db
+    .update(projects)
+    .set({ ...body, updated_at: new Date() })
+    .where(and(eq(projects.id, id), eq(projects.user_id, session.user.id)))
+    .returning()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
+  if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(data)
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Params }) {
   const { id } = await params
-  const supabase = await createClient()
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { error } = await supabase
-    .from('projects')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', user.id)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await db
+    .delete(projects)
+    .where(and(eq(projects.id, id), eq(projects.user_id, session.user.id)))
 
   return new NextResponse(null, { status: 204 })
 }

@@ -1,28 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { characters } from '@/lib/db/schema'
+import { eq, asc } from 'drizzle-orm'
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const projectId = req.nextUrl.searchParams.get('projectId')
   if (!projectId) return NextResponse.json({ error: 'projectId required' }, { status: 400 })
 
-  const { data, error } = await supabase
-    .from('characters')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: true })
+  const data = await db
+    .select()
+    .from(characters)
+    .where(eq(characters.project_id, projectId))
+    .orderBy(asc(characters.created_at))
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
   const { project_id, name, role, description, memo } = body
@@ -31,12 +32,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'project_id, name, role 필수' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
-    .from('characters')
-    .insert({ project_id, name, role, description: description ?? '', memo: memo ?? '' })
-    .select()
-    .single()
+  const [data] = await db
+    .insert(characters)
+    .values({ project_id, name, role, description: description ?? '', memo: memo ?? '' })
+    .returning()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }

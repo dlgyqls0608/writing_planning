@@ -1,42 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { foreshadows } from '@/lib/db/schema'
+import { eq, asc } from 'drizzle-orm'
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const projectId = req.nextUrl.searchParams.get('projectId')
   if (!projectId) return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
 
-  const { data, error } = await supabase
-    .from('foreshadows')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: true })
+  const data = await db
+    .select()
+    .from(foreshadows)
+    .where(eq(foreshadows.project_id, projectId))
+    .orderBy(asc(foreshadows.created_at))
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { data, error } = await supabase
-    .from('foreshadows')
-    .insert({
-      project_id: body.project_id,
-      content: body.content,
-      is_resolved: false,
-      planted_episode: body.planted_episode ?? null,
+
+  const [data] = await db
+    .insert(foreshadows)
+    .values({
+      project_id:       body.project_id,
+      content:          body.content,
+      is_resolved:      false,
+      planted_episode:  body.planted_episode ?? null,
       resolved_episode: body.resolved_episode ?? null,
     })
-    .select()
-    .single()
+    .returning()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }

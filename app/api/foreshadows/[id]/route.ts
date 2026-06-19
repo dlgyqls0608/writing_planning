@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { foreshadows } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 type Params = Promise<{ id: string }>
 
 export async function PATCH(req: NextRequest, { params }: { params: Params }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
   const allowed: Record<string, unknown> = {}
@@ -16,24 +19,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
   if ('planted_episode' in body) allowed.planted_episode = body.planted_episode ?? null
   if (typeof body.content === 'string') allowed.content = body.content
 
-  const { data, error } = await supabase
-    .from('foreshadows')
-    .update(allowed)
-    .eq('id', id)
-    .select()
-    .single()
+  const [data] = await db
+    .update(foreshadows)
+    .set(allowed)
+    .where(eq(foreshadows.id, id))
+    .returning()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(data)
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Params }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { error } = await supabase.from('foreshadows').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await db.delete(foreshadows).where(eq(foreshadows.id, id))
   return new NextResponse(null, { status: 204 })
 }

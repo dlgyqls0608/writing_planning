@@ -1,49 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { projects, documents } from '@/lib/db/schema'
+import { eq, desc, inArray } from 'drizzle-orm'
 
 export async function GET() {
-  const supabase = await createClient()
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const data = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.user_id, session.user.id))
+    .orderBy(desc(projects.updated_at))
 
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('updated_at', { ascending: false })
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!data?.length) return NextResponse.json([])
+  if (!data.length) return NextResponse.json([])
 
   const projectIds = data.map((p) => p.id)
-  const { data: loglineDocs } = await supabase
-    .from('documents')
-    .select('project_id, content')
-    .eq('type', 'logline')
-    .in('project_id', projectIds)
+  const loglineDocs = await db
+    .select({ project_id: documents.project_id, content: documents.content })
+    .from(documents)
+    .where(inArray(documents.project_id, projectIds))
+    .where(eq(documents.type, 'logline'))
 
   const loglineMap = Object.fromEntries(
-    (loglineDocs ?? []).map((d) => [d.project_id, d.content])
+    loglineDocs.map((d) => [d.project_id, d.content])
   )
 
-  const projects = data.map((p) => ({
-    ...p,
-    logline: loglineMap[p.id] ?? p.logline ?? null,
-  }))
-
-  return NextResponse.json(projects)
+  return NextResponse.json(
+    data.map((p) => ({ ...p, logline: loglineMap[p.id] ?? p.logline ?? null }))
+  )
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
   const { title, genre, target_episodes = 100 } = body
@@ -52,23 +44,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '제목과 장르는 필수입니다.' }, { status: 400 })
   }
 
-  const { data, error } = await supabase
-    .from('projects')
-    .insert({ user_id: user.id, title, genre, target_episodes })
-    .select()
-    .single()
+  const [project] = await db
+    .insert(projects)
+    .values({ user_id: session.user.id, title, genre, target_episodes })
+    .returning()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await db.insert(documents).values([
+    { project_id: project.id, type: 'logline',     title: '로그라인' },
+    { project_id: project.id, type: 'synopsis',    title: '시놉시스' },
+    { project_id: project.id, type: 'plot',        title: '플롯' },
+    { project_id: project.id, type: 'treatment',   title: '트리트먼트' },
+    { project_id: project.id, type: 'story-bible', title: '스토리 바이블' },
+  ])
 
-  const defaultDocs = [
-    { type: 'logline',      title: '로그라인' },
-    { type: 'synopsis',     title: '시놉시스' },
-    { type: 'plot',         title: '플롯' },
-    { type: 'treatment',    title: '트리트먼트' },
-    { type: 'story-bible',  title: '스토리 바이블' },
-  ].map((d) => ({ ...d, project_id: data.id }))
-
-  await supabase.from('documents').insert(defaultDocs)
-
-  return NextResponse.json(data, { status: 201 })
+  return NextResponse.json(project, { status: 201 })
 }

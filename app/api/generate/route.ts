@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { projects } from '@/lib/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { getAIClient } from '@/lib/ai/client'
 import {
   getSystemPrompt,
@@ -11,7 +15,7 @@ import {
 } from '@/lib/ai/prompts'
 import type { GenerateRequest, StoryContext } from '@/types'
 
-export const maxDuration = 300 // Vercel Pro: up to 300s for AI streaming
+export const maxDuration = 300
 
 async function compressStoryContext(
   existing: StoryContext,
@@ -42,9 +46,8 @@ async function compressStoryContext(
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 })
 
   let body: GenerateRequest
   try {
@@ -57,28 +60,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '필수 항목이 누락되었습니다' }, { status: 400 })
   }
 
-  let { data: project, error: projectError } = await supabase
-    .from('projects')
-    .select('title, genre, target_episodes, logline, story_context')
-    .eq('id', body.projectId)
-    .eq('user_id', user.id)
-    .single()
+  const [project] = await db
+    .select({
+      title:          projects.title,
+      genre:          projects.genre,
+      target_episodes: projects.target_episodes,
+      logline:        projects.logline,
+      story_context:  projects.story_context,
+    })
+    .from(projects)
+    .where(and(eq(projects.id, body.projectId), eq(projects.user_id, session.user.id)))
+    .limit(1)
 
-  // story_context 컬럼이 없을 때(v7 마이그레이션 미적용) fallback
-  if (projectError && !project) {
-    const { data: fallback, error: fallbackError } = await supabase
-      .from('projects')
-      .select('title, genre, target_episodes, logline')
-      .eq('id', body.projectId)
-      .eq('user_id', user.id)
-      .single()
-    if (!fallbackError && fallback) {
-      project = { ...fallback, story_context: null }
-      projectError = null
-    }
-  }
-
-  if (projectError || !project) {
+  if (!project) {
     return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다' }, { status: 404 })
   }
 
@@ -86,7 +80,6 @@ export async function POST(req: NextRequest) {
     core: '', active: '', upcoming: '',
   }
 
-  // Questions mode: Haiku, non-streamed
   if (body.mode === 'questions') {
     const result = await getAIClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -145,14 +138,13 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // 스트리밍 완료 후 컨텍스트 압축 (Haiku, ~0.5s) → [DONE] 전 실행
         if (generatedContent) {
           try {
             const compressed = await compressStoryContext(storyContext, generatedContent, body.type)
-            await supabase
-              .from('projects')
-              .update({ story_context: compressed })
-              .eq('id', body.projectId)
+            await db
+              .update(projects)
+              .set({ story_context: compressed })
+              .where(eq(projects.id, body.projectId))
           } catch {
             // 압축 실패는 생성 결과에 영향 없음
           }

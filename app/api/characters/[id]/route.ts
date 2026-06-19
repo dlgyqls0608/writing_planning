@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { headers } from 'next/headers'
+import { auth } from '@/lib/auth'
+import { db } from '@/lib/db'
+import { characters } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 type Params = Promise<{ id: string }>
 
 export async function PATCH(req: NextRequest, { params }: { params: Params }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
   const allowed: Record<string, unknown> = {}
@@ -16,25 +19,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
   if (typeof body.description === 'string') allowed.description = body.description
   if (typeof body.memo === 'string') allowed.memo = body.memo
   if (typeof body.role === 'string' && body.role.trim()) allowed.role = body.role.trim()
-  if (body.deceased_episode === null || typeof body.deceased_episode === 'number') allowed.deceased_episode = body.deceased_episode
+  if (body.deceased_episode === null || typeof body.deceased_episode === 'number') {
+    allowed.deceased_episode = body.deceased_episode
+  }
 
-  const { data, error } = await supabase
-    .from('characters')
-    .update(allowed)
-    .eq('id', id)
-    .select()
-    .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const [data] = await db
+    .update(characters)
+    .set(allowed)
+    .where(eq(characters.id, id))
+    .returning()
+
+  if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(data)
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Params }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { error } = await supabase.from('characters').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await db.delete(characters).where(eq(characters.id, id))
   return new NextResponse(null, { status: 204 })
 }
