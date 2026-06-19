@@ -3,7 +3,7 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { projects, documents } from '@/lib/db/schema'
-import { eq, desc, inArray } from 'drizzle-orm'
+import { and, eq, desc, inArray } from 'drizzle-orm'
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -21,8 +21,7 @@ export async function GET() {
   const loglineDocs = await db
     .select({ project_id: documents.project_id, content: documents.content })
     .from(documents)
-    .where(inArray(documents.project_id, projectIds))
-    .where(eq(documents.type, 'logline'))
+    .where(and(inArray(documents.project_id, projectIds), eq(documents.type, 'logline')))
 
   const loglineMap = Object.fromEntries(
     loglineDocs.map((d) => [d.project_id, d.content])
