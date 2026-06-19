@@ -469,22 +469,25 @@ JSON 배열만 반환하세요. 예: ["질문1", "질문2"]`,
 
 export function getModelConfig(type: DocumentType): { model: string; maxTokens: number } {
   const configs: Record<DocumentType, { model: string; maxTokens: number }> = {
-    logline:          { model: 'claude-haiku-4-5-20251001', maxTokens: 5000  },
-    synopsis:         { model: 'claude-haiku-4-5-20251001', maxTokens: 7000  },
-    plot:             { model: 'claude-sonnet-4-6',         maxTokens: 8000  },
-    'plot-chapter':   { model: 'claude-sonnet-4-6',         maxTokens: 8000  },
-    treatment:        { model: 'claude-sonnet-4-6',         maxTokens: 6000  },
-    'story-bible':    { model: 'claude-sonnet-4-6',         maxTokens: 4000  },
-    'bible-world':    { model: 'claude-sonnet-4-6',         maxTokens: 4000  },
-    'bible-power':    { model: 'claude-sonnet-4-6',         maxTokens: 4000  },
-    'bible-glossary': { model: 'claude-haiku-4-5-20251001', maxTokens: 3000  },
-    'character-card': { model: 'claude-sonnet-4-6',         maxTokens: 4000  },
+    logline:          { model: 'claude-haiku-4-5-20251001', maxTokens: 2000  },
+    synopsis:         { model: 'claude-haiku-4-5-20251001', maxTokens: 3000  },
+    plot:             { model: 'claude-sonnet-4-6',         maxTokens: 6000  },
+    'plot-chapter':   { model: 'claude-sonnet-4-6',         maxTokens: 5000  },
+    treatment:        { model: 'claude-sonnet-4-6',         maxTokens: 2500  },
+    'story-bible':    { model: 'claude-sonnet-4-6',         maxTokens: 3000  },
+    'bible-world':    { model: 'claude-sonnet-4-6',         maxTokens: 3000  },
+    'bible-power':    { model: 'claude-sonnet-4-6',         maxTokens: 3000  },
+    'bible-glossary': { model: 'claude-haiku-4-5-20251001', maxTokens: 2000  },
+    'character-card': { model: 'claude-sonnet-4-6',         maxTokens: 3000  },
   }
   return configs[type]
 }
 
+const FORMAT_STRICT =
+  '\n\n[출력 규칙] 위에 정의된 형식과 섹션만 작성하세요. 추가 해설·코멘트·섹션을 절대 덧붙이지 마세요. 마지막 항목이 끝나는 즉시 출력을 종료하세요.'
+
 export function getSystemPrompt(type: DocumentType): string {
-  return SYSTEM_PROMPTS[type]
+  return SYSTEM_PROMPTS[type] + FORMAT_STRICT
 }
 
 export function getQuestionPrompt(type: DocumentType): string {
