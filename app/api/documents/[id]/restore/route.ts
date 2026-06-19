@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { documents, document_versions } from '@/lib/db/schema'
+import { documents, document_versions, projects } from '@/lib/db/schema'
 import { and, eq, desc } from 'drizzle-orm'
 
 type Params = Promise<{ id: string }>
@@ -11,6 +11,14 @@ export async function POST(request: NextRequest, { params }: { params: Params })
   const { id } = await params
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const [doc] = await db
+    .select({ id: documents.id, content: documents.content, user_input: documents.user_input })
+    .from(documents)
+    .innerJoin(projects, and(eq(projects.id, documents.project_id), eq(projects.user_id, session.user.id)))
+    .where(eq(documents.id, id))
+    .limit(1)
+  if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { versionId } = await request.json()
   if (!versionId) return NextResponse.json({ error: 'versionId required' }, { status: 400 })
@@ -23,13 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Params })
 
   if (!version) return NextResponse.json({ error: '버전을 찾을 수 없습니다' }, { status: 404 })
 
-  const [current] = await db
-    .select({ content: documents.content, user_input: documents.user_input })
-    .from(documents)
-    .where(eq(documents.id, id))
-    .limit(1)
-
-  if (current?.content) {
+  if (doc.content) {
     const [lastVer] = await db
       .select({ version_number: document_versions.version_number })
       .from(document_versions)
@@ -40,8 +42,8 @@ export async function POST(request: NextRequest, { params }: { params: Params })
     await db.insert(document_versions).values({
       document_id:    id,
       version_number: (lastVer?.version_number ?? 0) + 1,
-      content:        current.content,
-      user_input:     current.user_input ?? '',
+      content:        doc.content,
+      user_input:     doc.user_input ?? '',
     })
   }
 

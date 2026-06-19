@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { foreshadows } from '@/lib/db/schema'
-import { eq, asc } from 'drizzle-orm'
+import { foreshadows, projects } from '@/lib/db/schema'
+import { and, eq, asc } from 'drizzle-orm'
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -11,6 +11,13 @@ export async function GET(req: NextRequest) {
 
   const projectId = req.nextUrl.searchParams.get('projectId')
   if (!projectId) return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.user_id, session.user.id)))
+    .limit(1)
+  if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const data = await db
     .select()
@@ -26,6 +33,17 @@ export async function POST(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
+
+  if (!body.project_id || !body.content) {
+    return NextResponse.json({ error: 'project_id, content 필수' }, { status: 400 })
+  }
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, body.project_id), eq(projects.user_id, session.user.id)))
+    .limit(1)
+  if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const [data] = await db
     .insert(foreshadows)

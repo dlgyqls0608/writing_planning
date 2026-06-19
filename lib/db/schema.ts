@@ -110,12 +110,28 @@ export const foreshadows = pgTable('foreshadows', {
 // ── Relations ─────────────────────────────────────────────────────────────────
 
 export const projectsRelations = relations(projects, ({ many }) => ({
-  documents: many(documents),
+  documents:   many(documents),
+  characters:  many(characters),
+  foreshadows: many(foreshadows),
 }))
 
 export const documentsRelations = relations(documents, ({ one }) => ({
   project: one(projects, {
     fields: [documents.project_id],
+    references: [projects.id],
+  }),
+}))
+
+export const charactersRelations = relations(characters, ({ one }) => ({
+  project: one(projects, {
+    fields: [characters.project_id],
+    references: [projects.id],
+  }),
+}))
+
+export const foreshadowsRelations = relations(foreshadows, ({ one }) => ({
+  project: one(projects, {
+    fields: [foreshadows.project_id],
     references: [projects.id],
   }),
 }))
