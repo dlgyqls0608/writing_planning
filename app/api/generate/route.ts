@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const heartbeat = setInterval(() => {
         try { controller.enqueue(encoder.encode(': keepalive\n\n')) } catch {}
-      }, 10_000)
+      }, 5_000)
 
       let generatedContent = ''
 
@@ -138,6 +138,10 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // [DONE] 먼저 전송 → 클라이언트가 즉시 완료 인식
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+
+        // 컨텍스트 압축은 [DONE] 이후 백그라운드에서 처리
         if (generatedContent) {
           try {
             const compressed = await compressStoryContext(storyContext, generatedContent, body.type)
@@ -149,8 +153,6 @@ export async function POST(req: NextRequest) {
             // 압축 실패는 생성 결과에 영향 없음
           }
         }
-
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
       } catch (err) {
         const msg = err instanceof Error ? err.message : '생성 중 오류가 발생했습니다'
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`))

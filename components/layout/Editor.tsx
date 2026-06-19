@@ -169,26 +169,31 @@ export function Editor({ project }: EditorProps) {
       let accumulated = ''
       let lineBuffer = ''
 
+      const processLine = (line: string) => {
+        if (!line.startsWith('data: ')) return
+        const raw = line.slice(6).trim()
+        if (!raw || raw === '[DONE]') return
+        try {
+          const parsed = JSON.parse(raw)
+          if (parsed.error) throw new Error(parsed.error)
+          if (parsed.text) { accumulated += parsed.text; setStreamedText(accumulated) }
+        } catch (e) {
+          if (e instanceof SyntaxError) return
+          throw e
+        }
+      }
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
         lineBuffer += decoder.decode(value, { stream: true })
         const lines = lineBuffer.split('\n')
         lineBuffer = lines.pop() ?? ''
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6).trim()
-          if (raw === '[DONE]') continue
-          try {
-            const parsed = JSON.parse(raw)
-            if (parsed.error) throw new Error(parsed.error)
-            if (parsed.text) { accumulated += parsed.text; setStreamedText(accumulated) }
-          } catch (e) {
-            if (e instanceof SyntaxError) continue
-            throw e
-          }
-        }
+        for (const line of lines) processLine(line)
       }
+
+      // 스트림 종료 후 버퍼에 남은 마지막 줄 처리
+      if (lineBuffer) processLine(lineBuffer)
 
       await saveContent(selectedDoc.id, accumulated, userInput.trim())
       setEditedContent(accumulated)
